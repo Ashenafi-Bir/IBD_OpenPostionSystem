@@ -1,0 +1,176 @@
+
+@import url('https://fonts.googleapis.com/css2?family=TBWA+Grotesk:wght@400;700&display=swap" rel="stylesheet');
+@import url('https://fonts.googleapis.com/css2?family=Mulish:ital,wght@0,200..1000;1,200..1000&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet');
+html{
+  /* font-size: 62.5%; */
+  scroll-behavior: smooth;
+}
+body {
+  overflow-x: hidden;
+}
+body::-webkit-scrollbar {
+  width: 0px;
+}
+p {
+  font-size: 0.9rem;
+  color: var(--primary-color);
+}
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  /* font-family: "Ubuntu",'Lato','TBWA Grotesk', sans-serif; */
+  font-family: 'Helvetica','TBWA Grotesk', sans-serif;
+  font-optical-sizing: auto;
+  font-style: normal;
+  list-style: none;
+  /* background-color: var(--bg-color); */
+}
+
+/* index.css */
+:root {
+  --primary-color: #2674b6;
+  --secondary-color: #fdda26;
+  --backk-color: rgb(212, 212, 212);
+  --back-color: linear-gradient(
+    135deg,
+    #f5f5f5 0%,
+    rgba(38, 116, 182, 0.15) 50%,
+    #367592 100%
+  );
+  --text-color: rgb(49, 49, 49);
+  --light-dark-color: rgb(99, 116, 126);
+  --dark-heading: rgb(65, 78, 87);
+  --bg-color: rgba(255, 255, 255);
+  --default-padding:50px;
+  --heading-size:42px;
+  --large-line-height:50px;
+  --h1-font-size:24px;
+}
+
+[data-theme="dark"] {
+  --primary-color: #f7f7f7;
+  --secondary-color: #457b9d;
+  --back-color: #5c5c5c;
+  --text-color: #ffffff;
+  --light-dark-color: rgb(179, 179, 179);
+  --dark-heading: rgb(220, 220, 220);
+  --bg-color: rgb(0, 0, 0);
+}
+
+
+a{
+  text-decoration: none;
+}
+.section{
+  padding: 25px 50px;
+}
+.Addis_tit{
+  color: #2c2c2c;
+  font-size: 0.8rem;
+}
+.Addis_tit2{
+ color: var(--primary-color);
+  font-size: 0.8rem;
+}
+.font-size {
+font-size: 0.9rem
+}
+.main_body{
+  margin-top: 1rem;
+  margin-left: 12rem;
+  padding: 0 0.5rem;
+}
+.AddisTitle{
+  color: var(--primary-color);
+  text-align: center;
+  font-weight: 800;
+  font-size: 1.4rem;
+}
+.addis_nav{
+  color: var(--primary-color);
+  background-color: var(--back-color);
+  padding: 2px;
+  font-weight:800;
+  text-align: center;
+  font-size:1.3rem;
+}
+.addis_nav2{
+  color: var(--back-color);
+  background-color: var(--primary-color);
+  padding: 2px;
+  font-weight:800;
+  text-align: center;
+  font-size:1.3rem;
+}
+/* index.css */
+button.addis_button {
+  background-color: var(--back-color) !important;
+  color: var(--primary-color) !important;
+  border: none;  /* Optional: Remove the default border from buttons */
+}
+
+button.addis_button:hover {
+  background-color: var(--primary-color) !important; /* Optional: Hover state */
+  color: var(--back-color) !important; /* Optional: Hover state */
+}
+button.addis_button2 {
+  background-color: var(--primary-color) !important;
+  color: var(--back-color) !important;
+  border: none;  /* Optional: Remove the default border from buttons */
+}
+.custom-btn {
+  background-color: var(--primary-color) !important;
+  color: var(--back-color) !important;
+  border: none !important;
+  padding: 0.5rem 1rem; /* optional: adjust spacing */
+  border-radius: 0.375rem; /* optional: rounded corners */
+  text-decoration: none; /* remove underline */
+  display: inline-block;
+}
+
+.custom-btn:hover {
+  opacity: 0.9; /* optional hover effect */
+}
+
+button.addis_button2:hover {
+  background-color: var(--back-color) !important; /* Optional: Hover state */
+  color: var(--primary-color) !important; /* Optional: Hover state */
+}
+
+/* 
+.my-body{
+  margin-top: 85px;
+  padding-top: 10px;
+}
+
+
+
+.my-body::-webkit-scrollbar {
+  display: none; /* Chrome, Safari 
+}
+
+.my-body {
+  -ms-overflow-style: none;  /* Internet Explorer 10+ 
+  scrollbar-width: none;  /* Firefox 
+} */
+
+
+.table-container {
+  position: relative;
+  overflow-x: auto;
+}
+
+.table-container .rdt_TableHeader {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 10;
+}
+
+.table-container .rdt_TableCol:last-child {
+  position: sticky !important;
+  right: 0 !important;
+  background-color: white;
+  z-index: 5;
+}
