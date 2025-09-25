@@ -11,10 +11,11 @@ import { authenticateToken, requireRole, logActivity } from '../middleware/auth.
 
 const router = express.Router();
 
+// In your daily balance routes
 router.get('/', 
   authenticateToken, 
   logActivity('get_daily_balances', 'daily_balances'),
-  getDailyBalances
+  getDailyBalances  // Use the new function that includes related data
 );
 
 router.post('/', 

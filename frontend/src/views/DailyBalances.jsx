@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { dailyBalanceService, balanceItemService, currencyService  } from '../services/api';
+import { dailyBalanceService, balanceItemService, currencyService } from '../services/api';
 import DataTable from '../components/common/DataTable';
 import Modal from '../components/common/Modal';
 import { useForm } from '../hooks/useForm';
@@ -53,26 +53,66 @@ const DailyBalances = () => {
     loadCurrencies();
   }, []);
 
-  // Enhanced function to get balance item name with debugging
+  // Enhanced function to get balance item name
   const getBalanceItemName = (balance) => {
     if (!balance) return 'N/A';
     
-    // Try all possible property name variations
-    const itemName = 
-      balance.balanceItem?.name ||
-      balance.item?.name ||
-      balance.balance_item?.name ||
-      balance.balanceItemName ||
-      balance.itemName ||
-      balance.name;
+    console.log('Looking for item name in balance:', balance);
     
-    console.log('Balance object:', balance);
-    console.log('Attempting to find item name. Found:', itemName);
+    // First try to find by item_id mapping to balanceItems array
+    const itemId = balance.item_id;
+    if (itemId && balanceItems.length > 0) {
+      const foundItem = balanceItems.find(item => item.id === itemId);
+      if (foundItem) {
+        console.log('Found item by ID mapping:', foundItem.name);
+        return foundItem.name;
+      }
+    }
     
-    return itemName || 'N/A';
+    // Then try nested objects
+    if (balance.BalanceItem && balance.BalanceItem.name) {
+      return balance.BalanceItem.name;
+    }
+    if (balance.balanceItem && balance.balanceItem.name) {
+      return balance.balanceItem.name;
+    }
+    
+    // Last resort: check if there's any name property
+    if (balance.name) {
+      return balance.name;
+    }
+    
+    return 'N/A';
   };
 
-  // Fetch balances like Dashboard
+  // Enhanced function to get currency info
+  const getCurrencyInfo = (balance) => {
+    if (!balance) return { code: 'N/A', name: 'N/A' };
+    
+    console.log('Looking for currency in balance:', balance);
+    
+    // First try to find by currency_id mapping to currencies array
+    const currencyId = balance.currency_id;
+    if (currencyId && currencies.length > 0) {
+      const foundCurrency = currencies.find(currency => currency.id === currencyId);
+      if (foundCurrency) {
+        console.log('Found currency by ID mapping:', foundCurrency);
+        return { code: foundCurrency.code, name: foundCurrency.name };
+      }
+    }
+    
+    // Then try nested objects
+    if (balance.Currency) {
+      return { code: balance.Currency.code, name: balance.Currency.name };
+    }
+    if (balance.currency) {
+      return { code: balance.currency.code, name: balance.currency.name };
+    }
+    
+    return { code: 'N/A', name: 'N/A' };
+  };
+
+  // Fetch balances
   const loadBalances = async (isRefresh = false) => {
     try {
       if (!isRefresh) {
@@ -121,37 +161,25 @@ const DailyBalances = () => {
     console.log('Grouping balances:', balances);
     
     return balances.reduce((acc, balance) => {
-      const currency = balance.currency?.code || balance.currencyCode || 'Unknown';
+      const currencyInfo = getCurrencyInfo(balance);
+      const currency = currencyInfo.code;
+      
       if (!acc[currency]) acc[currency] = [];
       acc[currency].push(balance);
       return acc;
     }, {});
-  }, [balances]);
+  }, [balances, currencies]);
 
-  // Enhanced function to get item ID from balance with all possible variations
+  // Enhanced function to get item ID from balance
   const getBalanceItemId = (balance) => {
     if (!balance) return '';
-    
-    return (
-      balance.item_id?.toString() ||
-      balance.itemId?.toString() ||
-      balance.balanceItem?.id?.toString() ||
-      balance.balance_item_id?.toString() ||
-      balance.balanceItemId?.toString() ||
-      ''
-    );
+    return balance.item_id?.toString() || '';
   };
 
-  // Enhanced function to get currency ID from balance with all possible variations
+  // Enhanced function to get currency ID from balance
   const getBalanceCurrencyId = (balance) => {
     if (!balance) return '';
-    
-    return (
-      balance.currency_id?.toString() ||
-      balance.currencyId?.toString() ||
-      balance.currency?.id?.toString() ||
-      ''
-    );
+    return balance.currency_id?.toString() || '';
   };
 
   // Refresh function
@@ -166,10 +194,20 @@ const DailyBalances = () => {
     if (!validate()) return;
 
     try {
+      // Prepare data for API - ensure we're using the correct field names
+      const apiData = {
+        balanceDate: values.balanceDate,
+        currencyId: values.currencyId, // This should map to currency_id in backend
+        itemId: values.itemId, // This should map to item_id in backend
+        amount: values.amount
+      };
+
+      console.log('Submitting data:', apiData);
+
       if (editingBalance) {
         await dailyBalanceService.update(editingBalance.id, { amount: values.amount });
       } else {
-        await dailyBalanceService.create(values);
+        await dailyBalanceService.create(apiData);
       }
       
       setShowModal(false);
@@ -233,6 +271,21 @@ const DailyBalances = () => {
         const itemName = getBalanceItemName(row);
         console.log('Rendering item for row:', row, 'Item name:', itemName);
         return itemName;
+      }
+    },
+    { 
+      key: 'currency', 
+      title: 'Currency', 
+      render: (value, row) => {
+        const currencyInfo = getCurrencyInfo(row);
+        return (
+          <div>
+            <div><strong>{currencyInfo.code}</strong></div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              {currencyInfo.name}
+            </div>
+          </div>
+        );
       }
     },
     { 
