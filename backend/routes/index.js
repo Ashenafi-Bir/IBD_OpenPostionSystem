@@ -1,6 +1,5 @@
 import express from 'express';
 import authRoutes from './auth.js';
-import balanceRoutes from './balances.js';
 import correspondentRoutes from './correspondent.js';
 import transactionRoutes from './transactions.js';
 import exchangeRateRoutes from './exchangeRates.js';
@@ -12,7 +11,6 @@ import currencyRoutes from './currencies.js';
 const router = express.Router();
 
 router.use('/auth', authRoutes);
-router.use('/balances', balanceRoutes);
 router.use('/correspondent', correspondentRoutes);
 router.use('/transactions', transactionRoutes);
 router.use('/exchange-rates', exchangeRateRoutes);

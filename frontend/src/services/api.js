@@ -1,3 +1,5 @@
+
+
 import axios from 'axios';
 import { storage } from '../utils/storage';
 import toast from 'react-hot-toast';
@@ -81,6 +83,8 @@ api.interceptors.response.use(
   }
 );
 
+
+// Auth services
 export const authService = {
   login: async (credentials) => {
     const response = await api.post('/auth/login', credentials);
@@ -96,18 +100,34 @@ export const authService = {
 // Currency services
 export const currencyService = {
   getAll: () => api.get('/currencies').then(res => res.data),
+  getById: (id) => api.get(`/currencies/${id}`).then(res => res.data),
+  create: (data) => api.post('/currencies', data).then(res => res.data),
+  update: (id, data) => api.put(`/currencies/${id}`, data).then(res => res.data),
+  delete: (id) => api.delete(`/currencies/${id}`).then(res => res.data),
 };
 
-// Balance services
-export const balanceService = {
-  getCashOnHand: (currency, date) => 
-    api.get(`/balances/cash-on-hand/${currency}?date=${date}`).then(res => res.data),
+// Daily Balance services (now includes report functions)
+export const dailyBalanceService = {
+  getBalances: (date) => 
+    api.get(`/daily-balances?date=${date}`).then(res => res.data),
   
-  getTotals: (date) => 
-    api.get(`/balances/totals?date=${date}`).then(res => res.data),
+  getReports: (date) => 
+    api.get(`/daily-balances/reports?date=${date}`).then(res => res.data),
   
-  getPosition: (date) => 
-    api.get(`/balances/position?date=${date}`).then(res => res.data),
+  create: (data) => 
+    api.post('/daily-balances', data).then(res => res.data),
+  
+  update: (id, data) => 
+    api.put(`/daily-balances/${id}`, data).then(res => res.data),
+  
+  delete: (id) => 
+    api.delete(`/daily-balances/${id}`).then(res => res.data),
+  
+  submit: (id) => 
+    api.patch(`/daily-balances/${id}/submit`).then(res => res.data),
+  
+  authorize: (id) => 
+    api.patch(`/daily-balances/${id}/authorize`).then(res => res.data),
 };
 
 // Correspondent services
@@ -174,27 +194,6 @@ export const paidUpCapitalService = {
   
   update: (data) => 
     api.put('/paid-up-capital', data).then(res => res.data),
-};
-
-// Daily Balance services
-export const dailyBalanceService = {
-  getBalances: (date) => 
-    api.get(`/daily-balances?date=${date}`).then(res => res.data),
-  
-  create: (data) => 
-    api.post('/daily-balances', data).then(res => res.data),
-  
-  update: (id, data) => 
-    api.put(`/daily-balances/${id}`, data).then(res => res.data),
-  
-  delete: (id) => 
-    api.delete(`/daily-balances/${id}`).then(res => res.data),
-  
-  submit: (id) => 
-    api.patch(`/daily-balances/${id}/submit`).then(res => res.data),
-  
-  authorize: (id) => 
-    api.patch(`/daily-balances/${id}/authorize`).then(res => res.data),
 };
 
 export default api;

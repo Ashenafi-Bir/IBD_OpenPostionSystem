@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { transactionService } from '../services/api';
+import { transactionService, currencyService } from '../services/api';
 import DataTable from '../components/common/DataTable';
 import Modal from '../components/common/Modal';
 import { useForm } from '../hooks/useForm';
 import { required } from '../utils/validators';
-import { formatCurrency, formatDate } from '../utils/formatters';
+import { formatCurrency, formatDate, formatNumber } from '../utils/formatters';
 import { Plus, CheckCircle, XCircle, Clock, RefreshCw } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 
@@ -17,6 +17,25 @@ const Transactions = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [transactions, setTransactions] = useState([]);
+  const [currencies, setCurrencies] = useState([]);
+  const [currenciesLoading, setCurrenciesLoading] = useState(true);
+
+  // Load currencies for the dropdown
+  useEffect(() => {
+    const loadCurrencies = async () => {
+      try {
+        const data = await currencyService.getAll();
+        setCurrencies(data || []);
+      } catch (err) {
+        console.error('Error loading currencies:', err);
+        setCurrencies([]);
+      } finally {
+        setCurrenciesLoading(false);
+      }
+    };
+
+    loadCurrencies();
+  }, []);
 
   const loadTransactions = useCallback(async (isRefresh = false) => {
     const date = selectedDate.toISOString().split('T')[0];
@@ -32,7 +51,8 @@ const Transactions = () => {
       const options = { signal: abortController.signal };
 
       const transactionList = await transactionService.getList({ date }, options);
-      setTransactions(transactionList);
+      console.log('Raw transactions data from API:', transactionList);
+      setTransactions(transactionList || []);
       
       return () => abortController.abort();
     } catch (err) {
@@ -65,9 +85,9 @@ const Transactions = () => {
       description: ''
     },
     {
-      currencyId: required(),
-      amount: required(),
-      rate: required(),
+      currencyId: required('Currency is required'),
+      amount: required('Amount is required'),
+      rate: required('Rate is required'),
     }
   );
 
@@ -77,11 +97,21 @@ const Transactions = () => {
     if (!validate()) return;
 
     try {
-      await transactionService.create(values);
+      // Ensure currencyId is properly formatted as number
+      const submitData = {
+        ...values,
+        currencyId: parseInt(values.currencyId, 10),
+        amount: parseFloat(values.amount),
+        rate: parseFloat(values.rate)
+      };
+
+      console.log('Creating transaction with data:', submitData);
+      await transactionService.create(submitData);
       setShowModal(false);
       reset();
       handleRefresh(); // Refresh the list after a successful creation
     } catch (error) {
+      console.error('Error creating transaction:', error);
       // Error is handled by the interceptor
     }
   };
@@ -91,13 +121,55 @@ const Transactions = () => {
       await transactionService.authorize(id);
       handleRefresh(); // Refresh the list after a successful authorization
     } catch (error) {
+      console.error('Error authorizing transaction:', error);
       // Error is handled by the interceptor
     }
+  };
+
+  // Get currency info - since currency_id is null, we need to handle this
+  const getTransactionCurrencyInfo = (transaction) => {
+    if (!transaction) return { code: 'N/A', name: 'N/A' };
+    
+    console.log('Transaction currency_id:', transaction.currency_id);
+    
+    // If currency_id is null, we can't look it up
+    if (transaction.currency_id === null) {
+      return { code: 'MISSING', name: 'Currency not set' };
+    }
+    
+    // Try to find currency by ID
+    if (transaction.currency_id && currencies.length > 0) {
+      const foundCurrency = currencies.find(currency => 
+        currency.id === transaction.currency_id
+      );
+      if (foundCurrency) {
+        return { 
+          code: foundCurrency.code, 
+          name: foundCurrency.name 
+        };
+      }
+    }
+    
+    return { code: 'N/A', name: 'N/A' };
   };
   
   const transactionColumns = [
     { key: 'transactionDate', title: 'Date', render: (value) => formatDate(value) },
-    { key: 'currency.code', title: 'Currency', render: (value, row) => row.currency?.code },
+    { 
+      key: 'currency', 
+      title: 'Currency', 
+      render: (value, row) => {
+        const currencyInfo = getTransactionCurrencyInfo(row);
+        return (
+          <div>
+            <div><strong>{currencyInfo.code}</strong></div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              {currencyInfo.name}
+            </div>
+          </div>
+        );
+      }
+    },
     { key: 'transactionType', title: 'Type', render: (value) => (
       <span style={{ 
         color: value === 'purchase' ? 'var(--success-color)' : 'var(--error-color)',
@@ -184,7 +256,6 @@ const Transactions = () => {
           <button 
             onClick={() => setShowModal(true)}
             className="btn btn-primary"
-            disabled={!hasRole(['maker', 'authorizer'])}
           >
             <Plus size={16} />
             New Transaction
@@ -192,11 +263,26 @@ const Transactions = () => {
         </div>
       </div>
 
+      {/* Debug info */}
+      <div style={{ marginBottom: '1rem', padding: '1rem', background: '#f5f5f5', borderRadius: '4px' }}>
+        <div style={{ color: 'red', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+          ⚠️ CRITICAL ISSUE: Transactions have NULL currency_id
+        </div>
+        <small>
+          <strong>Debug Info:</strong> Loaded {transactions.length} transactions, {currencies.length} currencies. 
+          <br />
+          <strong>Problem:</strong> All transactions have <code>currency_id: null</code> in the database.
+          <br />
+          <strong>Solution:</strong> Check backend API to ensure currencyId is being saved properly.
+        </small>
+      </div>
+
       {/* Transactions Table */}
       <DataTable
         columns={transactionColumns}
-        data={transactions || []}
+        data={transactions}
         loading={refreshing}
+        emptyMessage="No transactions found for selected date"
       />
 
       {/* Create Transaction Modal */}
@@ -223,19 +309,21 @@ const Transactions = () => {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Currency</label>
+              <label className="form-label">Currency *</label>
               <select
                 name="currencyId"
                 value={values.currencyId}
                 onChange={(e) => handleChange('currencyId', e.target.value)}
                 onBlur={() => handleBlur('currencyId')}
                 className="form-input"
+                disabled={currenciesLoading}
               >
                 <option value="">Select Currency</option>
-                <option value="1">USD</option>
-                <option value="2">EUR</option>
-                <option value="3">GBP</option>
-                <option value="4">JPY</option>
+                {currencies.map(currency => (
+                  <option key={currency.id} value={currency.id}>
+                    {currency.code} - {currency.name}
+                  </option>
+                ))}
               </select>
               {touched.currencyId && errors.currencyId && (
                 <div className="form-error">{errors.currencyId}</div>
@@ -256,7 +344,7 @@ const Transactions = () => {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Amount</label>
+              <label className="form-label">Amount *</label>
               <input
                 type="number"
                 name="amount"
@@ -266,6 +354,7 @@ const Transactions = () => {
                 className="form-input"
                 placeholder="0.00"
                 step="0.01"
+                min="0"
               />
               {touched.amount && errors.amount && (
                 <div className="form-error">{errors.amount}</div>
@@ -273,7 +362,7 @@ const Transactions = () => {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Exchange Rate</label>
+              <label className="form-label">Exchange Rate *</label>
               <input
                 type="number"
                 name="rate"
@@ -283,6 +372,7 @@ const Transactions = () => {
                 className="form-input"
                 placeholder="0.0000"
                 step="0.0001"
+                min="0"
               />
               {touched.rate && errors.rate && (
                 <div className="form-error">{errors.rate}</div>

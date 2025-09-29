@@ -1,21 +1,27 @@
 import express from 'express';
 import { 
   getDailyBalances, 
+  getBalanceReports,
   createDailyBalance, 
   updateDailyBalance, 
   deleteDailyBalance,
   submitDailyBalance,
-//   authorizeBalance
+  authorizeDailyBalance
 } from '../controllers/dailyBalanceController.js';
 import { authenticateToken, requireRole, logActivity } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// In your daily balance routes
 router.get('/', 
   authenticateToken, 
   logActivity('get_daily_balances', 'daily_balances'),
-  getDailyBalances  // Use the new function that includes related data
+  getDailyBalances
+);
+
+router.get('/reports', 
+  authenticateToken, 
+  logActivity('get_balance_reports', 'daily_balances'),
+  getBalanceReports
 );
 
 router.post('/', 
@@ -46,11 +52,11 @@ router.patch('/:id/submit',
   submitDailyBalance
 );
 
-// router.patch('/:id/authorize', 
-//   authenticateToken, 
-//   requireRole(['authorizer', 'admin']),
-//   logActivity('authorize_daily_balance', 'daily_balances'),
-//   authorizeBalance
-// );
+router.patch('/:id/authorize', 
+  authenticateToken, 
+  requireRole(['authorizer', 'admin']),
+  logActivity('authorize_daily_balance', 'daily_balances'),
+  authorizeDailyBalance
+);
 
 export default router;

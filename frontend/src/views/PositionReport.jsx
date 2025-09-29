@@ -1,124 +1,175 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { balanceService } from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { dailyBalanceService, currencyService, paidUpCapitalService, exchangeRateService } from '../services/api';
 import DataTable from '../components/common/DataTable';
-import DatePicker from 'react-datepicker';
 import { formatCurrency, formatNumber } from '../utils/formatters';
-import { TrendingUp, TrendingDown, Download, RefreshCw } from 'lucide-react';
+import { Download, Calculator } from 'lucide-react';
+import LoadingSpinner from '../components/common/LoadingSpinner';
 
 const PositionReport = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [position, setPosition] = useState(null);
+  const [positionData, setPositionData] = useState(null);
+  const [paidUpCapital, setPaidUpCapital] = useState(2979527); // Default value
 
-  const loadPositionData = useCallback(async (isRefresh = false) => {
-    const date = selectedDate.toISOString().split('T')[0];
-    try {
-      if (!isRefresh) {
-        setLoading(true);
-      } else {
-        setRefreshing(true);
+  // Load paid-up capital
+  useEffect(() => {
+    const loadPaidUpCapital = async () => {
+      try {
+        const data = await paidUpCapitalService.get();
+        setPaidUpCapital(data.capitalAmount || 2979527);
+      } catch (err) {
+        console.error('Error loading paid-up capital:', err);
       }
+    };
+
+    loadPaidUpCapital();
+  }, []);
+
+  // Calculate position data
+  const calculatePosition = async () => {
+    try {
+      setLoading(true);
       setError(null);
 
-      const abortController = new AbortController();
-      const options = { signal: abortController.signal };
+      // Get balance reports
+      const balanceReports = await dailyBalanceService.getReports(
+        selectedDate.toISOString().split('T')[0]
+      );
 
-      const positionData = await balanceService.getPosition(date, options);
-      setPosition(positionData);
-      
-      return () => abortController.abort();
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        setError(err.message);
-        console.error('Position report loading error:', err);
+      // Get exchange rates for the date
+      const exchangeRates = await exchangeRateService.getRates(
+        selectedDate.toISOString().split('T')[0]
+      );
+
+      if (!balanceReports || !exchangeRates) {
+        throw new Error('Failed to load required data');
       }
+
+      // Get all currencies
+      const currencies = await currencyService.getAll();
+
+      const positionReport = {
+        currencies: [],
+        overall: {
+          totalLong: 0,
+          totalShort: 0,
+          overallOpenPosition: 0,
+          overallPercentage: 0,
+          paidUpCapital: paidUpCapital
+        }
+      };
+
+      for (const currency of currencies) {
+        const currencyTotals = balanceReports.totals.find(
+          (t) => t.currency === currency.code
+        );
+        if (!currencyTotals) continue;
+
+        // ✅ Safely match exchange rate by currency object OR currency_id
+        const exchangeRate = exchangeRates.find(
+          (rate) =>
+            (rate.currency && rate.currency.code === currency.code) ||
+            (rate.currency_id && rate.currency_id === currency.id)
+        );
+        if (!exchangeRate) continue;
+
+        const position =
+          currencyTotals.asset +
+          currencyTotals.memoAsset -
+          (currencyTotals.liability + currencyTotals.memoLiability);
+
+        const midRate = parseFloat(exchangeRate.midRate);
+        const positionLocal = position * midRate;
+        const percentage = (positionLocal / paidUpCapital) * 100;
+
+        positionReport.currencies.push({
+          currency: currency.code,
+          asset: currencyTotals.asset,
+          liability: currencyTotals.liability,
+          memoAsset: currencyTotals.memoAsset,
+          memoLiability: currencyTotals.memoLiability,
+          position,
+          midRate,
+          positionLocal,
+          percentage,
+          type: position >= 0 ? 'long' : 'short'
+        });
+      }
+
+      // Totals
+      positionReport.overall.totalLong = positionReport.currencies
+        .filter((c) => c.type === 'long')
+        .reduce((sum, c) => sum + c.positionLocal, 0);
+
+      positionReport.overall.totalShort = positionReport.currencies
+        .filter((c) => c.type === 'short')
+        .reduce((sum, c) => sum + c.positionLocal, 0);
+
+      positionReport.overall.overallOpenPosition =
+        positionReport.overall.totalLong + positionReport.overall.totalShort;
+
+      positionReport.overall.overallPercentage =
+        (positionReport.overall.overallOpenPosition / paidUpCapital) * 100;
+
+      setPositionData(positionReport);
+    } catch (err) {
+      setError(err.message);
+      console.error('Error calculating position:', err);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  }, [selectedDate]);
+  };
 
   useEffect(() => {
-    loadPositionData();
-  }, [loadPositionData]);
+    calculatePosition();
+  }, [selectedDate, paidUpCapital]);
 
-  const handleRefresh = () => {
-    loadPositionData(true);
-  };
-  
   const positionColumns = [
-    { 
-      key: 'currency', 
-      title: 'Currency' 
-    },
-    { 
-      key: 'asset', 
-      title: 'Assets', 
-      render: (value) => formatCurrency(value) 
-    },
-    { 
-      key: 'liability', 
-      title: 'Liabilities', 
-      render: (value) => formatCurrency(value) 
-    },
-    { 
-      key: 'memoAsset', 
-      title: 'Memo Assets', 
-      render: (value) => formatCurrency(value) 
-    },
-    { 
-      key: 'memoLiability', 
-      title: 'Memo Liabilities', 
-      render: (value) => formatCurrency(value) 
-    },
-    { 
-      key: 'position', 
-      title: 'Position', 
-      render: (value, row) => (
-        <span style={{ 
-          color: value >= 0 ? 'var(--success-color)' : 'var(--error-color)',
-          fontWeight: '600'
-        }}>
+    { key: 'currency', title: 'Currency' },
+    { key: 'asset', title: 'Assets', render: (v) => formatCurrency(v) },
+    { key: 'liability', title: 'Liabilities', render: (v) => formatCurrency(v) },
+    { key: 'memoAsset', title: 'Memo Assets', render: (v) => formatCurrency(v) },
+    { key: 'memoLiability', title: 'Memo Liabilities', render: (v) => formatCurrency(v) },
+    {
+      key: 'position',
+      title: 'Position',
+      render: (value) => (
+        <span
+          style={{
+            color: value >= 0 ? 'var(--success-color)' : 'var(--error-color)',
+            fontWeight: '600'
+          }}
+        >
           {formatCurrency(value)}
         </span>
       )
     },
-    { 
-      key: 'positionLocal', 
-      title: 'Position (Local)', 
-      render: (value) => formatCurrency(value, 'ETB') 
+    {
+      key: 'positionLocal',
+      title: 'Position (Local)',
+      render: (v) => formatCurrency(v, 'ETB')
     },
-    { 
-      key: 'percentage', 
-      title: '% of Capital', 
+    {
+      key: 'percentage',
+      title: '% of Capital',
       render: (value) => (
-        <span style={{ 
-          color: Math.abs(value) > 5 ? 'var(--error-color)' : 'inherit'
-        }}>
+        <span style={{ color: Math.abs(value) > 5 ? 'var(--error-color)' : 'inherit' }}>
           {formatNumber(value)}%
         </span>
       )
-    },
+    }
   ];
 
-  if (loading && !refreshing) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
+  if (loading) return <LoadingSpinner />;
 
   if (error) {
     return (
-      <div className="text-center p-8">
-        <div className="text-red-500 mb-4">Error loading position report: {error}</div>
-        <button 
-          onClick={handleRefresh}
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-        >
+      <div style={{ textAlign: 'center', padding: '2rem' }}>
+        <div style={{ color: 'var(--error-color)', marginBottom: '1rem' }}>
+          Error loading position report: {error}
+        </div>
+        <button onClick={calculatePosition} className="btn btn-primary">
           Retry
         </button>
       </div>
@@ -127,87 +178,91 @@ const PositionReport = () => {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <h1>Position Report</h1>
-        
+      {/* Header */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '2rem'
+        }}
+      >
+        <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Calculator size={24} />
+          Position Report
+        </h1>
+
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <DatePicker
-            selected={selectedDate}
-            onChange={setSelectedDate}
+          <input
+            type="date"
+            value={selectedDate.toISOString().split('T')[0]}
+            onChange={(e) => setSelectedDate(new Date(e.target.value))}
             className="form-input"
-            dateFormat="yyyy-MM-dd"
           />
-          
-          <button 
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="btn btn-primary"
-          >
-            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-            {refreshing ? 'Refresh' : 'Refresh'}
-          </button>
-          
-          <button className="btn btn-secondary">
+
+          <button className="btn btn-primary">
             <Download size={16} />
             Export
           </button>
         </div>
       </div>
 
-      {position && (
+      {positionData && (
         <>
           {/* Summary Cards */}
           <div className="stats-grid" style={{ marginBottom: '2rem' }}>
             <div className="stat-card">
               <p className="stat-label">Total Long Positions</p>
               <p className="stat-value" style={{ color: 'var(--success-color)' }}>
-                {formatCurrency(position.overall.totalLong, 'ETB')}
+                {formatCurrency(positionData.overall.totalLong, 'ETB')}
               </p>
             </div>
-            
+
             <div className="stat-card">
               <p className="stat-label">Total Short Positions</p>
               <p className="stat-value" style={{ color: 'var(--error-color)' }}>
-                {formatCurrency(position.overall.totalShort, 'ETB')}
+                {formatCurrency(positionData.overall.totalShort, 'ETB')}
               </p>
             </div>
-            
+
             <div className="stat-card">
               <p className="stat-label">Overall Open Position</p>
               <p className="stat-value">
-                {formatCurrency(position.overall.overallOpenPosition, 'ETB')}
+                {formatCurrency(positionData.overall.overallOpenPosition, 'ETB')}
               </p>
             </div>
-            
+
             <div className="stat-card">
               <p className="stat-label">% of Total Capital</p>
-              <p className="stat-value" style={{ 
-                color: Math.abs(position.overall.overallPercentage) > 10 ? 'var(--error-color)' : 'inherit'
-              }}>
-                {formatNumber(position.overall.overallPercentage)}%
+              <p
+                className="stat-value"
+                style={{
+                  color:
+                    Math.abs(positionData.overall.overallPercentage) > 10
+                      ? 'var(--error-color)'
+                      : 'inherit'
+                }}
+              >
+                {formatNumber(positionData.overall.overallPercentage)}%
               </p>
             </div>
           </div>
 
-          {/* Detailed Position Table */}
+          {/* Detailed Table */}
           <div className="card">
             <h3 style={{ marginBottom: '1rem' }}>Detailed Position by Currency</h3>
-            
-            <DataTable
-              columns={positionColumns}
-              data={position.currencies || []}
-              loading={refreshing}
-            />
+            <DataTable columns={positionColumns} data={positionData.currencies || []} />
           </div>
 
           {/* Notes */}
           <div className="card" style={{ marginTop: '2rem' }}>
             <h4>Notes</h4>
             <ul style={{ paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>
-              <li>Positive position indicates long position (assets exceed liabilities)</li>
-              <li>Negative position indicates short position (liabilities exceed assets)</li>
-              <li>Positions exceeding 10% of total capital require management attention</li>
-              <li>All local currency amounts are calculated using mid exchange rates</li>
+              <li>Positive = long position (assets exceed liabilities)</li>
+              <li>Negative = short position (liabilities exceed assets)</li>
+              <li>Positions &gt; 10% of capital require management attention</li>
+              <li>Local amounts use mid exchange rates</li>
+              <li>Paid-up Capital: {formatCurrency(paidUpCapital, 'ETB')}</li>
             </ul>
           </div>
         </>
