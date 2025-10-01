@@ -9,7 +9,7 @@ import { Edit, History, DollarSign, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const PaidUpCapital = () => {
-  const { hasRole } = useAuth();
+  const { hasAnyRole } = useAuth();
 
   const [capital, setCapital] = useState(null);
   const [history, setHistory] = useState([]);
@@ -134,7 +134,7 @@ const PaidUpCapital = () => {
             <History size={16} />
             View History
           </button>
-          {hasRole(['admin']) && (
+        
             <button
               onClick={() => setShowModal(true)}
               className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
@@ -142,7 +142,7 @@ const PaidUpCapital = () => {
               <Edit size={16} />
               Update Capital
             </button>
-          )}
+    
           <button
             onClick={handleRefresh}
             disabled={refreshing}

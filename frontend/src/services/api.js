@@ -150,6 +150,12 @@ export const transactionService = {
   authorize: (id) => 
     api.patch(`/transactions/${id}/authorize`).then(res => res.data),
   
+  submit: (id) => 
+    api.patch(`/transactions/${id}/submit`).then(res => res.data),
+  
+  update: (id, data) => 
+    api.put(`/transactions/${id}`, data).then(res => res.data),
+  
   getList: (params) => 
     api.get('/transactions', { params }).then(res => res.data),
 };
@@ -188,6 +194,9 @@ export const balanceItemService = {
 export const paidUpCapitalService = {
   get: () => 
     api.get('/paid-up-capital').then(res => res.data),
+  
+  getForDate: (date) => 
+    api.get(`/paid-up-capital/for-date?date=${date}`).then(res => res.data),
   
   getHistory: () => 
     api.get('/paid-up-capital/history').then(res => res.data),

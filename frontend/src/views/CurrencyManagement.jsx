@@ -8,7 +8,7 @@ import { Edit, Trash2, Plus, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const CurrencyManagement = () => {
-  const { hasRole } = useAuth();
+  const { hasAnyRole } = useAuth();
   const [currencies, setCurrencies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -129,7 +129,7 @@ const CurrencyManagement = () => {
         </span>
       )
     },
-    ...(hasRole(['admin'])
+    ...(hasAnyRole(['admin'])
       ? [
           {
             key: 'actions',
@@ -196,7 +196,7 @@ const CurrencyManagement = () => {
             {refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
 
-          {hasRole(['admin']) && (
+          {hasAnyRole(['admin']) && (
             <button
               onClick={() => {
                 setEditingCurrency(null);

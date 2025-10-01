@@ -8,7 +8,7 @@ import { Edit, Trash2, Plus, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const BalanceItems = () => {
-  const { hasRole } = useAuth();
+  const { hasAnyRole } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -139,7 +139,7 @@ const BalanceItems = () => {
     },
     { key: 'displayOrder', title: 'Order' },
     { key: 'description', title: 'Description' },
-    ...(hasRole(['admin'])
+    ...(hasAnyRole(['admin'])
       ? [
           {
             key: 'actions',
@@ -194,7 +194,7 @@ const BalanceItems = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Balance Items</h1>
 
-        {hasRole(['admin']) && (
+        {hasAnyRole(['admin']) && (
           <div className="flex gap-2">
             <button
               onClick={() => {

@@ -6,11 +6,11 @@ import Modal from '../components/common/Modal';
 import { useForm } from '../hooks/useForm';
 import { required } from '../utils/validators';
 import { formatCurrency, formatDate, formatNumber } from '../utils/formatters';
-import { Plus, CheckCircle, XCircle, Clock, RefreshCw } from 'lucide-react';
+import { Plus, CheckCircle, XCircle, Clock, RefreshCw, Send, Edit } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 
 const Transactions = () => {
-  const { hasRole } = useAuth();
+  const { user, hasAnyRole, hasRole } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
@@ -19,6 +19,7 @@ const Transactions = () => {
   const [transactions, setTransactions] = useState([]);
   const [currencies, setCurrencies] = useState([]);
   const [currenciesLoading, setCurrenciesLoading] = useState(true);
+  const [editingTransaction, setEditingTransaction] = useState(null);
 
   // Load currencies for the dropdown
   useEffect(() => {
@@ -126,7 +127,54 @@ const Transactions = () => {
     }
   };
 
-  // Get currency info - since currency_id is null, we need to handle this
+  const handleSubmitTransaction = async (id) => {
+    try {
+      await transactionService.submit(id);
+      handleRefresh(); // Refresh the list after a successful submission
+    } catch (error) {
+      console.error('Error submitting transaction:', error);
+      // Error is handled by the interceptor
+    }
+  };
+
+  const handleEdit = (transaction) => {
+    setEditingTransaction(transaction);
+    reset({
+      transactionDate: transaction.transactionDate,
+      currencyId: transaction.currency_id?.toString() || '',
+      transactionType: transaction.transactionType,
+      amount: transaction.amount?.toString() || '',
+      rate: transaction.rate?.toString() || '',
+      reference: transaction.reference || '',
+      description: transaction.description || ''
+    });
+    setShowModal(true);
+  };
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    
+    if (!validate()) return;
+
+    try {
+      const updateData = {
+        ...values,
+        currencyId: parseInt(values.currencyId, 10),
+        amount: parseFloat(values.amount),
+        rate: parseFloat(values.rate)
+      };
+
+      await transactionService.update(editingTransaction.id, updateData);
+      setShowModal(false);
+      setEditingTransaction(null);
+      reset();
+      handleRefresh();
+    } catch (error) {
+      console.error('Error updating transaction:', error);
+    }
+  };
+
+  // Get currency info
   const getTransactionCurrencyInfo = (transaction) => {
     if (!transaction) return { code: 'N/A', name: 'N/A' };
     
@@ -152,7 +200,28 @@ const Transactions = () => {
     
     return { code: 'N/A', name: 'N/A' };
   };
-  
+
+  // Check if user can edit the transaction
+  const canEditTransaction = (transaction) => {
+    if (hasAnyRole(['admin'])) return true;
+    if (hasAnyRole(['maker']) && transaction.status === 'draft') return true;
+    return false;
+  };
+
+  // Check if user can submit the transaction
+  const canSubmitTransaction = (transaction) => {
+    if (hasAnyRole(['admin'])) return true;
+    if (hasAnyRole(['maker']) && transaction.status === 'draft') return true;
+    return false;
+  };
+
+  // Check if user can authorize the transaction
+  const canAuthorizeTransaction = (transaction) => {
+    if (hasAnyRole(['admin'])) return true;
+    if (hasAnyRole(['authorizer']) && transaction.status === 'submitted') return true;
+    return false;
+  };
+
   const transactionColumns = [
     { key: 'transactionDate', title: 'Date', render: (value) => formatDate(value) },
     { 
@@ -187,28 +256,58 @@ const Transactions = () => {
         alignItems: 'center', 
         gap: '0.25rem',
         color: value === 'authorized' ? 'var(--success-color)' : 
-              value === 'rejected' ? 'var(--error-color)' : 'var(--warning-color)'
+              value === 'rejected' ? 'var(--error-color)' : 
+              value === 'submitted' ? 'var(--warning-color)' : 'var(--text-secondary)'
       }}>
         {value === 'authorized' ? <CheckCircle size={16} /> : 
-          value === 'rejected' ? <XCircle size={16} /> : <Clock size={16} />}
+          value === 'rejected' ? <XCircle size={16} /> : 
+          value === 'submitted' ? <Clock size={16} /> : <Clock size={16} />}
         {value.charAt(0).toUpperCase() + value.slice(1)}
       </span>
     )},
-    ...(hasRole(['authorizer', 'admin']) ? [{
+    {
       key: 'actions',
       title: 'Actions',
       render: (value, row) => (
-        row.status === 'submitted' && (
-          <button 
-            onClick={() => handleAuthorize(row.id)}
-            className="btn btn-success"
-            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-          >
-            Authorize
-          </button>
-        )
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {/* Edit Button - for draft transactions */}
+          {canEditTransaction(row) && (
+            <button 
+              onClick={() => handleEdit(row)}
+              className="btn btn-secondary"
+              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+              title="Edit Transaction"
+            >
+              <Edit size={14} />
+            </button>
+          )}
+          
+          {/* Submit Button - for draft transactions by makers */}
+          {canSubmitTransaction(row) && (
+            <button 
+              onClick={() => handleSubmitTransaction(row.id)}
+              className="btn btn-warning"
+              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+              title="Submit for Authorization"
+            >
+              <Send size={14} />
+            </button>
+          )}
+          
+          {/* Authorize Button - for submitted transactions by authorizers */}
+          {canAuthorizeTransaction(row) && (
+            <button 
+              onClick={() => handleAuthorize(row.id)}
+              className="btn btn-success"
+              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+              title="Authorize Transaction"
+            >
+              <CheckCircle size={14} />
+            </button>
+          )}
+        </div>
       )
-    }] : [])
+    }
   ];
 
   if (loading && !refreshing) {
@@ -254,28 +353,18 @@ const Transactions = () => {
             {refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
           <button 
-            onClick={() => setShowModal(true)}
+            onClick={() => {
+              setEditingTransaction(null);
+              setShowModal(true);
+            }}
             className="btn btn-primary"
+            disabled={!hasAnyRole(['maker', 'authorizer', 'admin'])}
           >
             <Plus size={16} />
             New Transaction
           </button>
         </div>
       </div>
-
-      {/* Debug info */}
-      {/* <div style={{ marginBottom: '1rem', padding: '1rem', background: '#f5f5f5', borderRadius: '4px' }}>
-        <div style={{ color: 'red', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-          ⚠️ CRITICAL ISSUE: Transactions have NULL currency_id
-        </div>
-        <small>
-          <strong>Debug Info:</strong> Loaded {transactions.length} transactions, {currencies.length} currencies. 
-          <br />
-          <strong>Problem:</strong> All transactions have <code>currency_id: null</code> in the database.
-          <br />
-          <strong>Solution:</strong> Check backend API to ensure currencyId is being saved properly.
-        </small>
-      </div> */}
 
       {/* Transactions Table */}
       <DataTable
@@ -285,16 +374,17 @@ const Transactions = () => {
         emptyMessage="No transactions found for selected date"
       />
 
-      {/* Create Transaction Modal */}
+      {/* Create/Edit Transaction Modal */}
       <Modal
         isOpen={showModal}
         onClose={() => {
           setShowModal(false);
+          setEditingTransaction(null);
           reset();
         }}
-        title="Create New Transaction"
+        title={editingTransaction ? "Edit Transaction" : "Create New Transaction"}
       >
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={editingTransaction ? handleUpdate : handleSubmit}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className="form-group">
               <label className="form-label">Transaction Date</label>
@@ -305,6 +395,7 @@ const Transactions = () => {
                 onChange={(e) => handleChange('transactionDate', e.target.value)}
                 onBlur={() => handleBlur('transactionDate')}
                 className="form-input"
+                disabled={editingTransaction && editingTransaction.status !== 'draft'}
               />
             </div>
 
@@ -316,7 +407,7 @@ const Transactions = () => {
                 onChange={(e) => handleChange('currencyId', e.target.value)}
                 onBlur={() => handleBlur('currencyId')}
                 className="form-input"
-                disabled={currenciesLoading}
+                disabled={currenciesLoading || (editingTransaction && editingTransaction.status !== 'draft')}
               >
                 <option value="">Select Currency</option>
                 {currencies.map(currency => (
@@ -337,6 +428,7 @@ const Transactions = () => {
                 value={values.transactionType}
                 onChange={(e) => handleChange('transactionType', e.target.value)}
                 className="form-input"
+                disabled={editingTransaction && editingTransaction.status !== 'draft'}
               >
                 <option value="purchase">Purchase</option>
                 <option value="sale">Sale</option>
@@ -355,6 +447,7 @@ const Transactions = () => {
                 placeholder="0.00"
                 step="0.01"
                 min="0"
+                disabled={editingTransaction && editingTransaction.status !== 'draft'}
               />
               {touched.amount && errors.amount && (
                 <div className="form-error">{errors.amount}</div>
@@ -373,6 +466,7 @@ const Transactions = () => {
                 placeholder="0.0000"
                 step="0.0001"
                 min="0"
+                disabled={editingTransaction && editingTransaction.status !== 'draft'}
               />
               {touched.rate && errors.rate && (
                 <div className="form-error">{errors.rate}</div>
@@ -388,6 +482,7 @@ const Transactions = () => {
                 onChange={(e) => handleChange('reference', e.target.value)}
                 className="form-input"
                 placeholder="Reference number"
+                disabled={editingTransaction && editingTransaction.status !== 'draft'}
               />
             </div>
           </div>
@@ -401,14 +496,26 @@ const Transactions = () => {
               className="form-input"
               rows={3}
               placeholder="Transaction description"
+              disabled={editingTransaction && editingTransaction.status !== 'draft'}
             />
           </div>
+
+          {editingTransaction && (
+            <div className="alert alert-info">
+              <strong>Transaction Status:</strong> {editingTransaction.status}
+              <br />
+              {editingTransaction.status !== 'draft' && (
+                <small>This transaction can no longer be edited as it has been submitted for authorization.</small>
+              )}
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '2rem' }}>
             <button
               type="button"
               onClick={() => {
                 setShowModal(false);
+                setEditingTransaction(null);
                 reset();
               }}
               className="btn btn-secondary"
@@ -416,7 +523,7 @@ const Transactions = () => {
               Cancel
             </button>
             <button type="submit" className="btn btn-primary">
-              Create Transaction
+              {editingTransaction ? 'Update Transaction' : 'Create Transaction'}
             </button>
           </div>
         </form>

@@ -35,22 +35,21 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, []);
 
- const login = async (credentials) => {
-  try {
-    const response = await authService.login(credentials);
-    const { token, user } = response; // Assuming your API returns these
-    storage.setToken(token);
-    setUser(user);
-    setToken(token);
-    return { success: true };
-  } catch (error) {
-    return { 
-      success: false, 
-      error: error.response?.data?.error || 'Login failed' 
-    };
-  }
-};
-
+  const login = async (credentials) => {
+    try {
+      const response = await authService.login(credentials);
+      const { token, user } = response; // Assuming your API returns these
+      storage.setToken(token);
+      setUser(user);
+      setToken(token);
+      return { success: true };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error.response?.data?.error || 'Login failed' 
+      };
+    }
+  };
 
   const logout = () => {
     storage.removeToken();
@@ -65,8 +64,8 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     isAuthenticated: !!user,
-    hasRole: (role) => user?.role === role,
-    hasAnyRole: (roles) => roles.includes(user?.role)
+    hasRole: (role) => user?.role === role, // Check for a single role
+    hasAnyRole: (roles) => roles.some(role => user?.role === role) // Check for any role
   };
 
   return (

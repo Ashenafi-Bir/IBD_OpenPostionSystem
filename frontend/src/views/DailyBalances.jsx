@@ -9,7 +9,7 @@ import { Plus, Edit, Trash2, CheckCircle, Clock, Send, RefreshCw } from 'lucide-
 import { useAuth } from '../contexts/AuthContext';
 
 const DailyBalances = () => {
-  const { hasRole } = useAuth();
+  const { hasAnyRole } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [editingBalance, setEditingBalance] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -319,7 +319,7 @@ const DailyBalances = () => {
             onClick={() => handleEdit(row)} 
             className="btn" 
             style={{ padding: '0.25rem', background: 'none' }} 
-            disabled={row.status === 'authorized' && !hasRole(['admin'])}
+            disabled={row.status === 'authorized' && !hasAnyRole(['admin'])}
           >
             <Edit size={16} />
           </button>
@@ -332,7 +332,7 @@ const DailyBalances = () => {
               <Send size={16} />
             </button>
           )}
-          {row.status === 'submitted' && hasRole(['authorizer', 'admin']) && (
+          {row.status === 'submitted' && hasAnyRole(['authorizer', 'admin']) && (
             <button 
               onClick={() => handleAuthorize(row.id)} 
               className="btn" 
@@ -345,7 +345,7 @@ const DailyBalances = () => {
             onClick={() => handleDelete(row.id)} 
             className="btn" 
             style={{ padding: '0.25rem', background: 'none' }} 
-            disabled={row.status === 'authorized' && !hasRole(['admin'])}
+            disabled={row.status === 'authorized' && !hasAnyRole(['admin'])}
           >
             <Trash2 size={16} />
           </button>

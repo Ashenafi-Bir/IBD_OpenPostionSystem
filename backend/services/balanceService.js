@@ -2,6 +2,39 @@ import models from '../models/index.js';
 import { Op } from 'sequelize';
 
 export class BalanceService {
+  // Get current paid-up capital
+  static async getCurrentPaidUpCapital() {
+    try {
+      const capital = await models.PaidUpCapital.findOne({
+        where: { isActive: true },
+        order: [['effectiveDate', 'DESC']]
+      });
+      
+      return capital ? parseFloat(capital.capitalAmount) : 2979527;
+    } catch (error) {
+      console.error('Error fetching paid-up capital:', error);
+      return 2979527; // Fallback to default
+    }
+  }
+
+  // Get paid-up capital for specific date
+  static async getPaidUpCapitalForDate(date) {
+    try {
+      const capital = await models.PaidUpCapital.findOne({
+        where: {
+          effectiveDate: { [Op.lte]: date },
+          isActive: true
+        },
+        order: [['effectiveDate', 'DESC']]
+      });
+      
+      return capital ? parseFloat(capital.capitalAmount) : 2979527;
+    } catch (error) {
+      console.error('Error fetching paid-up capital for date:', error);
+      return 2979527; // Fallback to default
+    }
+  }
+
   // Calculate today's cash on hand from yesterday's balance plus purchases minus sales
   static async calculateCashOnHand(currencyCode, date) {
     try {
@@ -134,79 +167,78 @@ export class BalanceService {
     }
   }
 
-static async calculateTotals(date) {
-  try {
-    const currencies = await models.Currency.findAll({ where: { isActive: true } });
-    const result = [];
+  static async calculateTotals(date) {
+    try {
+      const currencies = await models.Currency.findAll({ where: { isActive: true } });
+      const result = [];
 
-    for (const currency of currencies) {
-      // First, ensure we have today's cash on hand calculated
-      const cashOnHandData = await this.calculateCashOnHand(currency.code, date);
-      
-      const balances = await models.DailyBalance.findAll({
-        where: {
-          balanceDate: date,
-          currency_id: currency.id,
-          status: 'authorized'
-        },
-        include: [{
-          model: models.BalanceItem,
-          attributes: ['category', 'code']
-        }]
-      });
-
-      let totalAsset = 0;
-      let totalLiability = 0;
-      let totalMemoAsset = 0;
-      let totalMemoLiability = 0;
-
-      // Add all balance items except cash on hand (we'll use calculated value)
-      balances.forEach(balance => {
-        const amount = parseFloat(balance.amount);
+      for (const currency of currencies) {
+        // First, ensure we have today's cash on hand calculated
+        const cashOnHandData = await this.calculateCashOnHand(currency.code, date);
         
-        // Skip cash on hand from manual balances if we're using calculated value
-        if (balance.BalanceItem.code === 'CASH_ON_HAND') {
-          return; // Skip manual entry if we're using calculated value
-        }
-        
-        switch (balance.BalanceItem.category) {
-          case 'asset':
-            totalAsset += amount;
-            break;
-          case 'liability':
-            totalLiability += amount;
-            break;
-          case 'memo_asset':
-            totalMemoAsset += amount;
-            break;
-          case 'memo_liability':
-            totalMemoLiability += amount;
-            break;
-        }
-      });
+        const balances = await models.DailyBalance.findAll({
+          where: {
+            balanceDate: date,
+            currency_id: currency.id,
+            status: 'authorized'
+          },
+          include: [{
+            model: models.BalanceItem,
+            attributes: ['category', 'code']
+          }]
+        });
 
-      // Add the calculated cash on hand to total asset
-      totalAsset += cashOnHandData.todayCashOnHand;
+        let totalAsset = 0;
+        let totalLiability = 0;
+        let totalMemoAsset = 0;
+        let totalMemoLiability = 0;
 
-      result.push({
-        currency: currency.code,
-        asset: totalAsset,
-        liability: totalLiability,
-        memoAsset: totalMemoAsset,
-        memoLiability: totalMemoLiability,
-        totalLiability: totalLiability + totalMemoLiability,
-        cashOnHand: cashOnHandData.todayCashOnHand
-      });
+        // Add all balance items except cash on hand (we'll use calculated value)
+        balances.forEach(balance => {
+          const amount = parseFloat(balance.amount);
+          
+          // Skip cash on hand from manual balances if we're using calculated value
+          if (balance.BalanceItem.code === 'CASH_ON_HAND') {
+            return; // Skip manual entry if we're using calculated value
+          }
+          
+          switch (balance.BalanceItem.category) {
+            case 'asset':
+              totalAsset += amount;
+              break;
+            case 'liability':
+              totalLiability += amount;
+              break;
+            case 'memo_asset':
+              totalMemoAsset += amount;
+              break;
+            case 'memo_liability':
+              totalMemoLiability += amount;
+              break;
+          }
+        });
+
+        // Add the calculated cash on hand to total asset
+        totalAsset += cashOnHandData.todayCashOnHand;
+
+        result.push({
+          currency: currency.code,
+          asset: totalAsset,
+          liability: totalLiability,
+          memoAsset: totalMemoAsset,
+          memoLiability: totalMemoLiability,
+          totalLiability: totalLiability + totalMemoLiability,
+          cashOnHand: cashOnHandData.todayCashOnHand
+        });
+      }
+
+      return result;
+    } catch (error) {
+      throw new Error(`Failed to calculate totals: ${error.message}`);
     }
-
-    return result;
-  } catch (error) {
-    throw new Error(`Failed to calculate totals: ${error.message}`);
   }
-}
 
-
-  // Calculate bank position
+  // Calculate bank position with dynamic capital
   static async calculatePosition(date) {
     try {
       const currencies = await models.Currency.findAll({ where: { isActive: true } });
@@ -215,7 +247,9 @@ static async calculateTotals(date) {
         include: [models.Currency]
       });
 
-      const paidUpCapital = 2979527; // Should come from config
+      // Get dynamic paid-up capital for the date
+      const paidUpCapital = await this.getPaidUpCapitalForDate(date);
+      
       const positionReport = {
         currencies: [],
         overall: {

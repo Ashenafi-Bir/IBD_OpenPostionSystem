@@ -298,3 +298,73 @@ export const getTransactions = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch transactions' });
   }
 };
+// Submit transaction (maker action)
+export const submitTransaction = [
+  param('id').isInt().withMessage('Invalid transaction ID'),
+  handleValidationErrors,
+
+  async (req, res) => {
+    try {
+      const transaction = await models.FCYTransaction.findByPk(req.params.id);
+      
+      if (!transaction) {
+        return res.status(404).json({ error: 'Transaction not found' });
+      }
+
+      if (transaction.status !== 'draft') {
+        return res.status(400).json({ error: 'Only draft transactions can be submitted' });
+      }
+
+      await transaction.update({ status: 'submitted' });
+      res.json(transaction);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to submit transaction' });
+    }
+  }
+];
+
+// Update transaction
+export const updateTransaction = [
+  param('id').isInt().withMessage('Invalid transaction ID'),
+  body('currencyId').isInt().withMessage('Invalid currency ID'),
+  body('transactionType').isIn(['purchase', 'sale']).withMessage('Invalid transaction type'),
+  body('amount').isDecimal().withMessage('Invalid amount'),
+  body('rate').isDecimal().withMessage('Invalid rate'),
+  handleValidationErrors,
+
+  async (req, res) => {
+    try {
+      const transaction = await models.FCYTransaction.findByPk(req.params.id);
+      
+      if (!transaction) {
+        return res.status(404).json({ error: 'Transaction not found' });
+      }
+
+      if (transaction.status !== 'draft') {
+        return res.status(400).json({ error: 'Only draft transactions can be updated' });
+      }
+
+      const updateData = {
+        ...req.body,
+        currency_id: req.body.currencyId,
+        amount: req.body.amount,
+        rate: req.body.rate
+      };
+
+      await transaction.update(updateData);
+      
+      const updatedTransaction = await models.FCYTransaction.findByPk(transaction.id, {
+        include: [
+          {
+            model: models.Currency,
+            attributes: ['id', 'code', 'name']
+          }
+        ]
+      });
+
+      res.json(updatedTransaction);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update transaction' });
+    }
+  }
+];
