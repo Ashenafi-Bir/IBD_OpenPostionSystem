@@ -260,7 +260,7 @@ const PositionReport = () => {
             <ul style={{ paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>
               <li>Positive = long position (assets exceed liabilities)</li>
               <li>Negative = short position (liabilities exceed assets)</li>
-              <li>Positions &gt; 10% of capital require management attention</li>
+              <li>Positions &gt; 15%  and &le; 0% of capital require management attention</li>
               <li>Local amounts use mid exchange rates</li>
               <li>Paid-up Capital: {formatCurrency(paidUpCapital, 'ETB')}</li>
             </ul>
