@@ -213,21 +213,21 @@ const PositionReport = () => {
           <div className="stats-grid" style={{ marginBottom: '2rem' }}>
             <div className="stat-card">
               <p className="stat-label">Total Long Positions</p>
-              <p className="stat-value" style={{ color: 'var(--success-color)' }}>
+              <p className="stat-value1" style={{ color: 'var(--success-color)' }}>
                 {formatCurrency(positionData.overall.totalLong, 'ETB')}
               </p>
             </div>
 
             <div className="stat-card">
               <p className="stat-label">Total Short Positions</p>
-              <p className="stat-value" style={{ color: 'var(--error-color)' }}>
+              <p className="stat-value1" style={{ color: 'var(--error-color)' }}>
                 {formatCurrency(positionData.overall.totalShort, 'ETB')}
               </p>
             </div>
 
             <div className="stat-card">
               <p className="stat-label">Overall Open Position</p>
-              <p className="stat-value">
+              <p className="stat-value1">
                 {formatCurrency(positionData.overall.overallOpenPosition, 'ETB')}
               </p>
             </div>
@@ -235,7 +235,7 @@ const PositionReport = () => {
             <div className="stat-card">
               <p className="stat-label">% of Total Capital</p>
               <p
-                className="stat-value"
+                className="stat-value1"
                 style={{
                   color:
                     Math.abs(positionData.overall.overallPercentage) > 10

@@ -1,6 +1,8 @@
 import models from '../models/index.js';
 import { body, param, query } from 'express-validator';
 import { handleValidationErrors } from '../middleware/validation.js';
+import { BalanceService } from '../services/balanceService.js'; // Adjust the path as necessary
+
 import { Op } from 'sequelize';
 
 export const getDailyBalances = [
@@ -47,7 +49,7 @@ export const getDailyBalances = [
   }
 ];
 
-// New function to get balance reports (totals and cash on hand)
+// Update the getBalanceReports function
 export const getBalanceReports = [
   query('date').isDate().withMessage('Invalid date format'),
   handleValidationErrors,
@@ -60,7 +62,7 @@ export const getBalanceReports = [
       const balances = await models.DailyBalance.findAll({
         where: { 
           balanceDate: date,
-          status: 'authorized' // Only include authorized balances
+          status: 'authorized'
         },
         include: [
           { 
@@ -74,114 +76,87 @@ export const getBalanceReports = [
         ]
       });
 
-      // Calculate cash on hand for each currency
+      // Calculate cash on hand for each currency using BalanceService
       const cashOnHandData = {};
       const currencies = await models.Currency.findAll({ where: { isActive: true } });
       
       for (const currency of currencies) {
-        const cashOnHandItem = await models.BalanceItem.findOne({
-          where: { code: 'CASH_ON_HAND' }
-        });
-
-        if (cashOnHandItem) {
-          const cashBalance = balances.find(b => 
-            b.currency_id === currency.id && b.item_id === cashOnHandItem.id
-          );
-
-          // Get yesterday's date
-          const yesterday = new Date(date);
-          yesterday.setDate(yesterday.getDate() - 1);
-          const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-          // Get yesterday's cash on hand
-          const yesterdayBalance = await models.DailyBalance.findOne({
-            where: {
-              balanceDate: yesterdayStr,
-              currency_id: currency.id,
-              item_id: cashOnHandItem.id,
-              status: 'authorized'
-            }
+        try {
+          const cashOnHandInfo = await BalanceService.calculateCashOnHand(currency.code, date);
+          cashOnHandData[currency.code] = cashOnHandInfo;
+        } catch (error) {
+          console.error(`Error calculating cash on hand for ${currency.code}:`, error);
+          // Fallback calculation
+          const cashOnHandItem = await models.BalanceItem.findOne({
+            where: { code: 'CASH_ON_HAND' }
           });
 
-          // Get today's transactions
-          const todayTransactions = await models.FCYTransaction.findAll({
-            where: {
-              transactionDate: date,
-              currency_id: currency.id,
-              status: 'authorized'
-            }
-          });
+          if (cashOnHandItem) {
+            const cashBalance = balances.find(b => 
+              b.currency_id === currency.id && b.item_id === cashOnHandItem.id
+            );
 
-          let purchaseAmount = 0;
-          let saleAmount = 0;
+            // Get yesterday's date
+            const yesterday = new Date(date);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-          todayTransactions.forEach(transaction => {
-            const amount = parseFloat(transaction.amount);
-            if (transaction.transactionType === 'purchase') {
-              purchaseAmount += amount;
-            } else if (transaction.transactionType === 'sale') {
-              saleAmount += amount;
-            }
-          });
+            // Get yesterday's cash on hand
+            const yesterdayBalance = await models.DailyBalance.findOne({
+              where: {
+                balanceDate: yesterdayStr,
+                currency_id: currency.id,
+                item_id: cashOnHandItem.id,
+                status: 'authorized'
+              }
+            });
 
-          const yesterdayAmount = yesterdayBalance ? parseFloat(yesterdayBalance.amount) : 0;
-          const todayAmount = cashBalance ? parseFloat(cashBalance.amount) : yesterdayAmount + purchaseAmount - saleAmount;
+            // Get today's transactions
+            const todayTransactions = await models.FCYTransaction.findAll({
+              where: {
+                transactionDate: date,
+                currency_id: currency.id,
+                status: 'authorized'
+              }
+            });
 
-          cashOnHandData[currency.code] = {
-            currency: currency.code,
-            yesterdayBalance: yesterdayAmount,
-            todayPurchase: purchaseAmount,
-            todaySale: saleAmount,
-            todayCashOnHand: todayAmount,
-            calculationDate: date
-          };
+            let purchaseAmount = 0;
+            let saleAmount = 0;
+
+            todayTransactions.forEach(transaction => {
+              const amount = parseFloat(transaction.amount);
+              if (transaction.transactionType === 'purchase') {
+                purchaseAmount += amount;
+              } else if (transaction.transactionType === 'sale') {
+                saleAmount += amount;
+              }
+            });
+
+            const yesterdayAmount = yesterdayBalance ? parseFloat(yesterdayBalance.amount) : 0;
+            const todayAmount = cashBalance ? parseFloat(cashBalance.amount) : yesterdayAmount + purchaseAmount - saleAmount;
+
+            cashOnHandData[currency.code] = {
+              currency: currency.code,
+              yesterdayBalance: yesterdayAmount,
+              todayPurchase: purchaseAmount,
+              todaySale: saleAmount,
+              todayCashOnHand: todayAmount,
+              calculationDate: date,
+              isManualEntry: !!cashBalance
+            };
+          }
         }
       }
 
-      // Calculate totals by currency and category
-      const totalsData = [];
-      const currencyTotals = {};
-
-      // Initialize totals for each currency
-      currencies.forEach(currency => {
-        currencyTotals[currency.code] = {
-          currency: currency.code,
-          asset: 0,
-          liability: 0,
-          memoAsset: 0,
-          memoLiability: 0
-        };
-      });
-
-      // Sum up balances by category
-      balances.forEach(balance => {
-        const currencyCode = balance.Currency.code;
-        const category = balance.BalanceItem.category;
-        const amount = parseFloat(balance.amount);
-
-        switch (category) {
-          case 'asset':
-            currencyTotals[currencyCode].asset += amount;
-            break;
-          case 'liability':
-            currencyTotals[currencyCode].liability += amount;
-            break;
-          case 'memo_asset':
-            currencyTotals[currencyCode].memoAsset += amount;
-            break;
-          case 'memo_liability':
-            currencyTotals[currencyCode].memoLiability += amount;
-            break;
-        }
-      });
-
-      // Convert to array and calculate total liability
-      Object.values(currencyTotals).forEach(currency => {
-        totalsData.push({
-          ...currency,
-          totalLiability: currency.liability + currency.memoLiability
-        });
-      });
+      // Calculate totals using BalanceService
+      let totalsData;
+      try {
+        totalsData = await BalanceService.calculateTotals(date);
+      } catch (error) {
+        console.error('Error calculating totals:', error);
+        // Fallback calculation
+        totalsData = await calculateTotalsFallback(date, balances, cashOnHandData);
+      }
 
       res.json({
         cashOnHand: Object.values(cashOnHandData),
@@ -195,6 +170,62 @@ export const getBalanceReports = [
   }
 ];
 
+// Fallback function for totals calculation
+async function calculateTotalsFallback(date, balances, cashOnHandData) {
+  const currencies = await models.Currency.findAll({ where: { isActive: true } });
+  const currencyTotals = {};
+
+  // Initialize totals for each currency
+  currencies.forEach(currency => {
+    currencyTotals[currency.code] = {
+      currency: currency.code,
+      asset: 0,
+      liability: 0,
+      memoAsset: 0,
+      memoLiability: 0,
+      cashOnHand: cashOnHandData[currency.code]?.todayCashOnHand || 0
+    };
+  });
+
+  // Sum up balances by category (excluding cash on hand as it's already calculated)
+  balances.forEach(balance => {
+    const currencyCode = balance.Currency.code;
+    const category = balance.BalanceItem.category;
+    const amount = parseFloat(balance.amount);
+
+    // Skip cash on hand from manual balances
+    if (balance.BalanceItem.code === 'CASH_ON_HAND') {
+      return;
+    }
+
+    switch (category) {
+      case 'asset':
+        currencyTotals[currencyCode].asset += amount;
+        break;
+      case 'liability':
+        currencyTotals[currencyCode].liability += amount;
+        break;
+      case 'memo_asset':
+        currencyTotals[currencyCode].memoAsset += amount;
+        break;
+      case 'memo_liability':
+        currencyTotals[currencyCode].memoLiability += amount;
+        break;
+    }
+  });
+
+  // Add cash on hand to total assets and convert to array
+  const totalsData = Object.values(currencyTotals).map(currency => {
+    const totalAsset = currency.asset + currency.cashOnHand;
+    return {
+      ...currency,
+      asset: totalAsset,
+      totalLiability: currency.liability + currency.memoLiability
+    };
+  });
+
+  return totalsData;
+}
 export const createDailyBalance = [
   body('balanceDate').isDate().withMessage('Invalid date format'),
   body('currencyId').isInt().withMessage('Invalid currency ID'),

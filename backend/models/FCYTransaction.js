@@ -9,6 +9,14 @@ export default (sequelize, DataTypes) => {
       type: DataTypes.DATEONLY,
       allowNull: false
     },
+    currency_id: { // TEMPORARILY allow null
+      type: DataTypes.INTEGER,
+      allowNull: true, // Changed from false to true
+      references: {
+        model: 'currencies',
+        key: 'id'
+      }
+    },
     transactionType: {
       type: DataTypes.ENUM('purchase', 'sale'),
       allowNull: false
@@ -29,10 +37,19 @@ export default (sequelize, DataTypes) => {
     status: {
       type: DataTypes.ENUM('draft', 'submitted', 'authorized', 'rejected'),
       defaultValue: 'draft'
+    },
+    created_by: { // TEMPORARILY allow null
+      type: DataTypes.INTEGER,
+      allowNull: true // Changed from false to true
+    },
+    authorized_by: {
+      type: DataTypes.INTEGER,
+      allowNull: true
     }
   }, {
     tableName: 'fcy_transactions',
-    timestamps: true
+    timestamps: true,
+    underscored: false // Remove this line since your DB uses camelCase
   });
 
   FCYTransaction.associate = function(models) {

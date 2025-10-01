@@ -264,7 +264,7 @@ const Transactions = () => {
       </div>
 
       {/* Debug info */}
-      <div style={{ marginBottom: '1rem', padding: '1rem', background: '#f5f5f5', borderRadius: '4px' }}>
+      {/* <div style={{ marginBottom: '1rem', padding: '1rem', background: '#f5f5f5', borderRadius: '4px' }}>
         <div style={{ color: 'red', fontWeight: 'bold', marginBottom: '0.5rem' }}>
           ⚠️ CRITICAL ISSUE: Transactions have NULL currency_id
         </div>
@@ -275,7 +275,7 @@ const Transactions = () => {
           <br />
           <strong>Solution:</strong> Check backend API to ensure currencyId is being saved properly.
         </small>
-      </div>
+      </div> */}
 
       {/* Transactions Table */}
       <DataTable

@@ -10,15 +10,79 @@ export class BalanceService {
         throw new Error(`Currency ${currencyCode} not found`);
       }
 
+      // Get cash on hand balance item
+      const cashOnHandItem = await models.BalanceItem.findOne({ 
+        where: { code: 'CASH_ON_HAND' } 
+      });
+
+      // Check if there's a manually updated cash on hand balance for today
+      const todayCashBalance = await models.DailyBalance.findOne({
+        where: {
+          balanceDate: date,
+          currency_id: currency.id,
+          item_id: cashOnHandItem.id,
+          status: 'authorized'
+        }
+      });
+
+      // If there's a manual entry for today, use that value directly
+      if (todayCashBalance) {
+        const todayAmount = parseFloat(todayCashBalance.amount);
+        
+        // Get yesterday's balance for reference
+        const yesterday = new Date(date);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+        const yesterdayBalance = await models.DailyBalance.findOne({
+          where: {
+            balanceDate: yesterdayStr,
+            currency_id: currency.id,
+            item_id: cashOnHandItem.id,
+            status: 'authorized'
+          }
+        });
+
+        const startingBalance = yesterdayBalance ? parseFloat(yesterdayBalance.amount) : 0;
+
+        // Get today's transactions for reporting
+        const todayTransactions = await models.FCYTransaction.findAll({
+          where: {
+            transactionDate: date,
+            currency_id: currency.id,
+            status: 'authorized'
+          }
+        });
+
+        let purchaseAmount = 0;
+        let saleAmount = 0;
+
+        todayTransactions.forEach(transaction => {
+          const amount = parseFloat(transaction.amount);
+          if (transaction.transactionType === 'purchase') {
+            purchaseAmount += amount;
+          } else if (transaction.transactionType === 'sale') {
+            saleAmount += amount;
+          }
+        });
+
+        return {
+          currency: currencyCode,
+          yesterdayBalance: startingBalance,
+          todayPurchase: purchaseAmount,
+          todaySale: saleAmount,
+          todayCashOnHand: todayAmount,
+          calculationDate: date,
+          isManualEntry: true
+        };
+      }
+
+      // If no manual entry, calculate from yesterday + transactions
       const yesterday = new Date(date);
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = yesterday.toISOString().split('T')[0];
 
       // Get yesterday's cash on hand balance
-      const cashOnHandItem = await models.BalanceItem.findOne({ 
-        where: { code: 'CASH_ON_HAND' } 
-      });
-
       const yesterdayBalance = await models.DailyBalance.findOne({
         where: {
           balanceDate: yesterdayStr,
@@ -62,70 +126,85 @@ export class BalanceService {
         todayPurchase: purchaseAmount,
         todaySale: saleAmount,
         todayCashOnHand: todayCashOnHand,
-        calculationDate: date
+        calculationDate: date,
+        isManualEntry: false
       };
     } catch (error) {
       throw new Error(`Failed to calculate cash on hand: ${error.message}`);
     }
   }
 
-  // Calculate totals for assets, liabilities, and memorandum items
-  static async calculateTotals(date) {
-    try {
-      const currencies = await models.Currency.findAll({ where: { isActive: true } });
-      const result = [];
+static async calculateTotals(date) {
+  try {
+    const currencies = await models.Currency.findAll({ where: { isActive: true } });
+    const result = [];
 
-      for (const currency of currencies) {
-        const balances = await models.DailyBalance.findAll({
-          where: {
-            balanceDate: date,
-            currency_id: currency.id,
-            status: 'authorized'
-          },
-          include: [{
-            model: models.BalanceItem,
-            attributes: ['category']
-          }]
-        });
+    for (const currency of currencies) {
+      // First, ensure we have today's cash on hand calculated
+      const cashOnHandData = await this.calculateCashOnHand(currency.code, date);
+      
+      const balances = await models.DailyBalance.findAll({
+        where: {
+          balanceDate: date,
+          currency_id: currency.id,
+          status: 'authorized'
+        },
+        include: [{
+          model: models.BalanceItem,
+          attributes: ['category', 'code']
+        }]
+      });
 
-        let totalAsset = 0;
-        let totalLiability = 0;
-        let totalMemoAsset = 0;
-        let totalMemoLiability = 0;
+      let totalAsset = 0;
+      let totalLiability = 0;
+      let totalMemoAsset = 0;
+      let totalMemoLiability = 0;
 
-        balances.forEach(balance => {
-          const amount = parseFloat(balance.amount);
-          switch (balance.BalanceItem.category) {
-            case 'asset':
-              totalAsset += amount;
-              break;
-            case 'liability':
-              totalLiability += amount;
-              break;
-            case 'memo_asset':
-              totalMemoAsset += amount;
-              break;
-            case 'memo_liability':
-              totalMemoLiability += amount;
-              break;
-          }
-        });
+      // Add all balance items except cash on hand (we'll use calculated value)
+      balances.forEach(balance => {
+        const amount = parseFloat(balance.amount);
+        
+        // Skip cash on hand from manual balances if we're using calculated value
+        if (balance.BalanceItem.code === 'CASH_ON_HAND') {
+          return; // Skip manual entry if we're using calculated value
+        }
+        
+        switch (balance.BalanceItem.category) {
+          case 'asset':
+            totalAsset += amount;
+            break;
+          case 'liability':
+            totalLiability += amount;
+            break;
+          case 'memo_asset':
+            totalMemoAsset += amount;
+            break;
+          case 'memo_liability':
+            totalMemoLiability += amount;
+            break;
+        }
+      });
 
-        result.push({
-          currency: currency.code,
-          asset: totalAsset,
-          liability: totalLiability,
-          memoAsset: totalMemoAsset,
-          memoLiability: totalMemoLiability,
-          totalLiability: totalLiability + totalMemoLiability
-        });
-      }
+      // Add the calculated cash on hand to total asset
+      totalAsset += cashOnHandData.todayCashOnHand;
 
-      return result;
-    } catch (error) {
-      throw new Error(`Failed to calculate totals: ${error.message}`);
+      result.push({
+        currency: currency.code,
+        asset: totalAsset,
+        liability: totalLiability,
+        memoAsset: totalMemoAsset,
+        memoLiability: totalMemoLiability,
+        totalLiability: totalLiability + totalMemoLiability,
+        cashOnHand: cashOnHandData.todayCashOnHand
+      });
     }
+
+    return result;
+  } catch (error) {
+    throw new Error(`Failed to calculate totals: ${error.message}`);
   }
+}
+
 
   // Calculate bank position
   static async calculatePosition(date) {
@@ -154,7 +233,6 @@ export class BalanceService {
         
         if (!currencyTotals) continue;
 
-        // Fix: Use a more defensive check to prevent 'Cannot read properties of null' error
         const exchangeRate = exchangeRates.find(rate => 
           rate?.Currency?.code === currency.code
         );
@@ -173,6 +251,7 @@ export class BalanceService {
           liability: currencyTotals.liability,
           memoAsset: currencyTotals.memoAsset,
           memoLiability: currencyTotals.memoLiability,
+          cashOnHand: currencyTotals.cashOnHand,
           position: position,
           midRate: parseFloat(exchangeRate.midRate),
           positionLocal: positionLocal,
