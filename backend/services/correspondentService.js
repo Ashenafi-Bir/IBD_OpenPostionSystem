@@ -204,9 +204,9 @@ export class CorrespondentService {
 
   static async generateLimitsReport(date) {
     try {
-      console.log('Starting limits report for date:', date);
+      console.log('Starting enhanced limits report for date:', date);
       
-      // Use raw query approach to avoid Sequelize association issues
+      // Get all active banks with their balances for the date
       const banks = await models.sequelize.query(`
         SELECT 
           cb.id,
@@ -237,88 +237,118 @@ export class CorrespondentService {
       const report = {
         date,
         currencies: {},
-        alerts: []
+        alerts: [],
+        summary: {
+          totalBalance: 0,
+          totalPercentage: 100,
+          totalMaxLimit: 100
+        }
       };
 
-      // Group banks by currency code
+      // First pass: Calculate total balances per currency
       banks.forEach(bank => {
-        const currencyCode = bank.currencyCode;
+        const currencyCode = bank.currencyCode || 'USD'; // Default to USD if null
+        const balance = bank.balanceAmount ? parseFloat(bank.balanceAmount) : 0;
+        
         if (!currencies[currencyCode]) {
-          currencies[currencyCode] = [];
+          currencies[currencyCode] = {
+            totalBalance: 0,
+            banks: []
+          };
         }
-        currencies[currencyCode].push(bank);
+        currencies[currencyCode].totalBalance += balance;
       });
 
-      console.log(`Currencies found: ${Object.keys(currencies).join(', ')}`);
-
-      for (const [currencyCode, currencyBanks] of Object.entries(currencies)) {
-        const totalBalance = currencyBanks.reduce((sum, bank) => {
-          return sum + (bank.balanceAmount ? parseFloat(bank.balanceAmount) : 0);
-        }, 0);
-
+      // Second pass: Calculate percentages and check limits
+      for (const [currencyCode, currencyData] of Object.entries(currencies)) {
+        const currencyBanks = banks.filter(bank => (bank.currencyCode || 'USD') === currencyCode);
+        
         report.currencies[currencyCode] = {
-          totalBalance,
+          totalBalance: currencyData.totalBalance,
           banks: []
         };
 
         currencyBanks.forEach(bank => {
           const balance = bank.balanceAmount ? parseFloat(bank.balanceAmount) : 0;
-          const percentage = totalBalance > 0 ? (balance / totalBalance) * 100 : 0;
+          const percentage = currencyData.totalBalance > 0 ? 
+            (balance / currencyData.totalBalance) * 100 : 0;
 
-          let limitType = '';
-          let limitValue = null;
-          let variation = 0;
           let status = 'normal';
+          let limitType = '';
+          let variation = 0;
+          let limitPercentage = null;
 
+          // Check against limits
           if (bank.maxLimit !== null && percentage > parseFloat(bank.maxLimit)) {
             status = 'exceeded';
             limitType = 'maximum';
-            limitValue = bank.maxLimit;
+            limitPercentage = bank.maxLimit;
             variation = percentage - parseFloat(bank.maxLimit);
+            
             report.alerts.push({
               bankName: bank.bankName,
               currency: currencyCode,
               balance: balance,
               percentage: percentage,
               limitType: limitType,
-              limitValue: limitValue,
+              limitPercentage: limitPercentage,
               variation: variation,
               status: status
             });
           } else if (bank.minLimit !== null && percentage < parseFloat(bank.minLimit)) {
             status = 'below';
             limitType = 'minimum';
-            limitValue = bank.minLimit;
+            limitPercentage = bank.minLimit;
             variation = parseFloat(bank.minLimit) - percentage;
+            
             report.alerts.push({
               bankName: bank.bankName,
               currency: currencyCode,
               balance: balance,
               percentage: percentage,
               limitType: limitType,
-              limitValue: limitValue,
+              limitPercentage: limitPercentage,
               variation: variation,
               status: status
             });
+          } else {
+            // Within limits - determine which limit is more relevant for display
+            if (bank.maxLimit !== null && bank.minLimit !== null) {
+              limitType = 'both';
+              limitPercentage = `${bank.minLimit}-${bank.maxLimit}`;
+            } else if (bank.maxLimit !== null) {
+              limitType = 'maximum';
+              limitPercentage = bank.maxLimit;
+            } else if (bank.minLimit !== null) {
+              limitType = 'minimum';
+              limitPercentage = bank.minLimit;
+            }
           }
 
           report.currencies[currencyCode].banks.push({
             id: bank.id,
             bankName: bank.bankName,
             accountNumber: bank.accountNumber,
+            currency: currencyCode,
             balance: balance,
             percentage: percentage,
             maxLimit: bank.maxLimit,
             minLimit: bank.minLimit,
             limitType: limitType,
-            limitValue: limitValue,
+            limitPercentage: limitPercentage,
             variation: variation,
             status: status
           });
         });
+
+        // Sort banks by balance descending for better presentation
+        report.currencies[currencyCode].banks.sort((a, b) => b.balance - a.balance);
       }
 
-      console.log('Report generated successfully');
+      console.log('Enhanced report generated successfully');
+      console.log('Currencies found:', Object.keys(report.currencies));
+      console.log('Total alerts:', report.alerts.length);
+      
       return report;
     } catch (error) {
       console.error('Error in generateLimitsReport:', error);
@@ -332,23 +362,25 @@ export class CorrespondentService {
       const cashCover = {};
 
       for (const [currencyCode, currencyData] of Object.entries(limitsReport.currencies)) {
-        const sortedBanks = [...currencyData.banks]
+        // Get top banks by balance for cash cover report
+        const sortedBanks = [...(currencyData.banks || [])]
           .filter(bank => bank.balance > 0)
           .sort((a, b) => b.balance - a.balance);
 
-        cashCover[currencyCode] = sortedBanks.slice(0, 5);
+        cashCover[currencyCode] = sortedBanks.slice(0, 10); // Top 10 banks
       }
 
       return {
         date,
         cashCover,
-        alerts: limitsReport.alerts
+        alerts: limitsReport.alerts,
+        summary: limitsReport.summary
       };
     } catch (error) {
+      console.error('Error in generateCashCoverReport:', error);
       throw new Error(`Failed to generate cash cover report: ${error.message}`);
     }
   }
-
   static async getActiveAlerts(date = null) {
     try {
       const whereClause = {
