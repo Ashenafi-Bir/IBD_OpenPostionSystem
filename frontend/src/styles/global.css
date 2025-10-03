@@ -110,6 +110,11 @@ code {
 .form-group {
   margin-bottom: 1rem;
 }
+.form-group1 {
+  margin-bottom: 1rem;
+   background: var(--surface-color);
+   padding: 2%;
+}
 
 .form-label {
   display: block;

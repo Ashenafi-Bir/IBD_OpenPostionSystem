@@ -1,5 +1,3 @@
-
-
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -7,7 +5,7 @@ import {
   Home, 
   BarChart3, 
   Calculator, 
-    Landmark,   // ✅ instead of Bank
+  Landmark,   // For Correspondent Banks
   CreditCard, 
   Users,
   LogOut,
@@ -15,25 +13,30 @@ import {
   Database,
   Folder,
   Settings,
-  Globe 
+  Globe,
+  ShieldCheck, // Icon for Paid-up Capital
+  FileText // Icon for Daily Balance Entry
 } from 'lucide-react';
 
 const Sidebar = () => {
   const { user, logout } = useAuth();
 
-  const menuItems = [
-    { path: '/dashboard', icon: Home, label: 'Dashboard', roles: ['maker', 'authorizer', 'admin'] },
-    { path: '/daily-balances', icon: Database, label: 'Daily Balances', roles: ['maker', 'authorizer', 'admin'] },
-    { path: '/transactions', icon: CreditCard, label: 'Transactions', roles: ['maker', 'authorizer', 'admin'] },
-    { path: '/exchange-rates', icon: DollarSign, label: 'Exchange Rates', roles: ['maker', 'authorizer', 'admin'] },
-    { path: '/balance-reports', icon: BarChart3, label: 'Balance Reports', roles: ['maker', 'authorizer', 'admin'] },
-    { path: '/position-report', icon: Calculator, label: 'Position Report', roles: ['maker', 'authorizer', 'admin'] },
-    { path: '/correspondent-reports', icon:   Landmark,  label: 'Correspondent Reports', roles: ['maker', 'authorizer', 'admin'] },
-    { path: '/paid-up-capital', icon: Settings, label: 'Paid-up Capital', roles: ['maker', 'authorizer', 'admin'] },
-    { path: '/balance-items', icon: Folder, label: 'Balance Items', roles: ['admin'] },
-    { path: '/users', icon: Users, label: 'User Management', roles: ['admin'] },
-    { path: '/currency-management', icon: Globe, label: 'Currency Management', roles: ['admin'] },
-  ];
+const menuItems = [
+    { path: '/dashboard', icon: Home, label: 'Dash', roles: ['maker', 'authorizer', 'admin'] },
+    { path: '/daily-balances', icon: Database, label: 'Daily Bal.', roles: ['maker', 'authorizer', 'admin'] },
+    { path: '/transactions', icon: CreditCard, label: 'Trans.', roles: ['maker', 'authorizer', 'admin'] },
+    { path: '/exchange-rates', icon: DollarSign, label: 'Exch. Rates', roles: ['maker', 'authorizer', 'admin'] },
+    { path: '/balance-reports', icon: BarChart3, label: 'Bal. Reports', roles: ['maker', 'authorizer', 'admin'] },
+    { path: '/position-report', icon: Calculator, label: 'Pos. Report', roles: ['maker', 'authorizer', 'admin'] },
+    { path: '/correspondent-reports', icon: Landmark, label: 'Cor. Reports', roles: ['maker', 'authorizer', 'admin'] },
+    { path: '/paid-up-capital', icon: ShieldCheck, label: 'Paid-up Cap.', roles: ['maker', 'authorizer', 'admin'] },
+    { path: '/CorrespondentBankManagement', icon: Home, label: 'Cor. Bank Mgmt.', roles: ['maker', 'authorizer', 'admin'] },
+    { path: '/DailyBalanceEntry', icon: FileText, label: 'Daily Bal. Entry', roles: ['maker', 'authorizer', 'admin'] },
+    { path: '/balance-items', icon: Folder, label: 'Bal. Items', roles: ['admin'] },
+    { path: '/users', icon: Users, label: 'Users', roles: ['admin'] },
+    { path: '/currency-management', icon: Globe, label: 'Curr. Mgmt.', roles: ['admin'] },
+];
+
 
   const filteredMenuItems = menuItems.filter(item => 
     item.roles.includes(user?.role)

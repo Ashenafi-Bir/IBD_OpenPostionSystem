@@ -7,6 +7,8 @@ import Dashboard from './views/Dashboard';
 import BalanceReports from './views/BalanceReports';
 import PositionReport from './views/PositionReport';
 import CorrespondentReports from './views/CorrespondentReports';
+import CorrespondentBankManagement from './views/CorrespondentBankManagement';
+import DailyBalanceEntry from './views/DailyBalanceEntry';
 import Transactions from './views/Transactions';
 import ExchangeRates from './views/ExchangeRates';
 import DailyBalances from './views/DailyBalances';
@@ -42,6 +44,8 @@ function App() {
           <Route path="balance-reports" element={<BalanceReports />} />
           <Route path="position-report" element={<PositionReport />} />
           <Route path="correspondent-reports" element={<CorrespondentReports />} />
+          <Route path="CorrespondentBankManagement" element={<CorrespondentBankManagement />} />
+          <Route path="DailyBalanceEntry" element={<DailyBalanceEntry />} />
           <Route path="paid-up-capital" element={<PaidUpCapital />} />
           <Route path="balance-items" element={<BalanceItems />} />
           {user?.role === 'admin' && (

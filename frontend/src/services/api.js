@@ -1,5 +1,3 @@
-
-
 import axios from 'axios';
 import { storage } from '../utils/storage';
 import toast from 'react-hot-toast';
@@ -25,8 +23,8 @@ const processQueue = () => {
 // Create axios instance with better configuration
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 30000, // Reduced from 5 minutes to 30 seconds
-  maxContentLength: 50 * 1024 * 1024, // 50MB
+  timeout: 30000,
+  maxContentLength: 50 * 1024 * 1024,
   maxRedirects: 5,
 });
 
@@ -83,15 +81,14 @@ api.interceptors.response.use(
   }
 );
 
-
 // Auth services
 export const authService = {
   login: async (credentials) => {
     const response = await api.post('/auth/login', credentials);
     return {
       success: true,
-      token: response.data.token, // or whatever your backend returns
-      user: response.data.user // if user data is returned
+      token: response.data.token,
+      user: response.data.user
     };
   },
   getProfile: () => api.get('/auth/profile').then(res => res.data.user),
@@ -106,7 +103,7 @@ export const currencyService = {
   delete: (id) => api.delete(`/currencies/${id}`).then(res => res.data),
 };
 
-// Daily Balance services (now includes report functions)
+// Daily Balance services
 export const dailyBalanceService = {
   getBalances: (date) => 
     api.get(`/daily-balances?date=${date}`).then(res => res.data),
@@ -130,16 +127,49 @@ export const dailyBalanceService = {
     api.patch(`/daily-balances/${id}/authorize`).then(res => res.data),
 };
 
-// Correspondent services
+// Correspondent Banking API - FIXED: Using api instance instead of axios directly
+// In your api.js file, update the correspondentService.getBanks method
 export const correspondentService = {
-  getLimitsReport: (date) => 
-    api.get(`/correspondent/limits?date=${date}`).then(res => res.data),
+  // Bank Management
+  createBank: (data) => 
+    api.post('/correspondent/banks', data).then(res => res.data),
   
-  getCashCoverReport: (date) => 
-    api.get(`/correspondent/cash-cover?date=${date}`).then(res => res.data),
+  updateBankLimits: (bankId, data) => 
+    api.patch(`/correspondent/banks/${bankId}/limits`, data).then(res => res.data),
   
-  createBalance: (data) => 
+  getBanks: (currencyId = null) => {
+    const params = currencyId ? { currencyId } : {};
+    return api.get('/correspondent/banks', { params }).then(res => res.data);
+  },
+
+  // Balance Management
+  addDailyBalance: (data) => 
     api.post('/correspondent/balances', data).then(res => res.data),
+  
+  getBankBalances: (bankId, params = {}) => 
+    api.get(`/correspondent/banks/${bankId}/balances`, { params }).then(res => res.data),
+
+  // Reports
+  getLimitsReport: (date, options = {}) => 
+    api.get('/correspondent/reports/limits', { 
+      params: { date },
+      ...options 
+    }).then(res => res.data),
+  
+  getCashCoverReport: (date, options = {}) => 
+    api.get('/correspondent/reports/cash-cover', { 
+      params: { date },
+      ...options 
+    }).then(res => res.data),
+
+  // Alerts
+  getActiveAlerts: (date = null) => {
+    const params = date ? { date } : {};
+    return api.get('/correspondent/alerts', { params }).then(res => res.data);
+  },
+  
+  resolveAlert: (alertId) => 
+    api.patch(`/correspondent/alerts/${alertId}/resolve`).then(res => res.data),
 };
 
 // Transaction services

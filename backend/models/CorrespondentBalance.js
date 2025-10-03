@@ -10,11 +10,18 @@ export default (sequelize, DataTypes) => {
       allowNull: false
     },
     balanceAmount: {
-      type: DataTypes.DECIMAL(20, 5),
-      allowNull: false
+      type: DataTypes.DECIMAL(20, 2),
+      allowNull: false,
+      validate: {
+        min: 0
+      }
     },
     notes: {
       type: DataTypes.TEXT
+    },
+    createdBy: {
+      type: DataTypes.INTEGER,
+      allowNull: false
     }
   }, {
     tableName: 'correspondent_balances',
@@ -22,13 +29,20 @@ export default (sequelize, DataTypes) => {
     indexes: [
       {
         unique: true,
-        fields: ['bank_id', 'balanceDate']
+        fields: ['bankId', 'balanceDate']
       }
     ]
   });
 
   CorrespondentBalance.associate = function(models) {
-    CorrespondentBalance.belongsTo(models.CorrespondentBank, { foreignKey: 'bank_id' });
+    CorrespondentBalance.belongsTo(models.CorrespondentBank, { 
+      foreignKey: 'bankId',
+      as: 'bank'
+    });
+    CorrespondentBalance.belongsTo(models.User, { 
+      foreignKey: 'createdBy',
+      as: 'creator'
+    });
   };
 
   return CorrespondentBalance;

@@ -11,6 +11,7 @@ import DailyBalance from './DailyBalance.js';
 import FCYTransaction from './FCYTransaction.js';
 import CorrespondentBank from './CorrespondentBank.js';
 import CorrespondentBalance from './CorrespondentBalance.js';
+import CorrespondentAlert from './CorrespondentAlert.js';
 import SystemLog from './SystemLog.js';
 import PaidUpCapital from './PaidUpCapital.js';
 
@@ -24,6 +25,7 @@ const models = {
   FCYTransaction: FCYTransaction(sequelize, DataTypes),
   CorrespondentBank: CorrespondentBank(sequelize, DataTypes),
   CorrespondentBalance: CorrespondentBalance(sequelize, DataTypes),
+  CorrespondentAlert: CorrespondentAlert(sequelize, DataTypes),
   SystemLog: SystemLog(sequelize, DataTypes),
   PaidUpCapital: PaidUpCapital(sequelize, DataTypes)
 };
