@@ -4,6 +4,80 @@ import { query, body, param } from 'express-validator';
 import { handleValidationErrors } from '../middleware/validation.js';
 import { Op } from 'sequelize';
 
+// NEW: Bulk import balances controller
+export const bulkImportBalances = [
+  body().isArray().withMessage('Request body must be an array'),
+  body('*.bankId').isInt().withMessage('Invalid bank ID'),
+  body('*.balanceDate').isDate().withMessage('Invalid date format'),
+  body('*.balanceAmount').isFloat({ min: 0 }).withMessage('Balance amount must be positive'),
+  body('*.notes').optional().isString(),
+  handleValidationErrors,
+
+  async (req, res) => {
+    try {
+      const balancesData = req.body;
+      const results = {
+        created: 0,
+        updated: 0,
+        errors: []
+      };
+
+      for (let i = 0; i < balancesData.length; i++) {
+        const balanceData = balancesData[i];
+        
+        try {
+          // Check if balance already exists for this bank and date
+          const existingBalance = await models.CorrespondentBalance.findOne({
+            where: {
+              bankId: balanceData.bankId,
+              balanceDate: balanceData.balanceDate
+            }
+          });
+
+          if (existingBalance) {
+            // Update existing balance
+            await existingBalance.update({
+              balanceAmount: balanceData.balanceAmount,
+              notes: balanceData.notes || existingBalance.notes,
+              createdBy: req.user.id
+            });
+            results.updated++;
+          } else {
+            // Create new balance
+            await models.CorrespondentBalance.create({
+              bankId: balanceData.bankId,
+              balanceDate: balanceData.balanceDate,
+              balanceAmount: balanceData.balanceAmount,
+              notes: balanceData.notes,
+              createdBy: req.user.id
+            });
+            results.created++;
+          }
+        } catch (error) {
+          results.errors.push({
+            row: i + 1,
+            error: error.message,
+            data: balanceData
+          });
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `Bulk import completed: ${results.created} created, ${results.updated} updated`,
+        ...results
+      });
+
+    } catch (error) {
+      console.error('Error in bulk import:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to import balances'
+      });
+    }
+  }
+];
+
 // Bank Management
 export const createBank = [
   body('bankName').notEmpty().withMessage('Bank name is required'),

@@ -6,6 +6,7 @@ import {
   deleteBank,
   getBanks,
   addDailyBalance,
+  bulkImportBalances, // NEW
   getBankBalances,
   getLimitsReport,
   getCashCoverReport,
@@ -61,7 +62,13 @@ router.post('/balances',
   logActivity('add_daily_balance', 'correspondent'),
   addDailyBalance
 );
-
+// NEW: Bulk import balances route
+router.post('/balances/bulk-import', 
+  authenticateToken, 
+  // requireRole(['maker', 'authorizer']),
+  logActivity('bulk_import_balances', 'correspondent'),
+  bulkImportBalances
+);
 router.get('/banks/:bankId/balances', 
   authenticateToken, 
   logActivity('get_bank_balances', 'correspondent'),

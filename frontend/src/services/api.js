@@ -104,6 +104,7 @@ export const currencyService = {
 };
 
 // Daily Balance services
+// Daily Balance services - UPDATED WITH BULK IMPORT
 export const dailyBalanceService = {
   getBalances: (date) => 
     api.get(`/daily-balances?date=${date}`).then(res => res.data),
@@ -125,6 +126,10 @@ export const dailyBalanceService = {
   
   authorize: (id) => 
     api.patch(`/daily-balances/${id}/authorize`).then(res => res.data),
+  
+  // NEW: Bulk import endpoint
+  bulkImport: (data) => 
+    api.post('/daily-balances/bulk-import', data).then(res => res.data),
 };
 
 // Correspondent Banking API - FIXED: Using api instance instead of axios directly
@@ -155,6 +160,9 @@ export const correspondentService = {
   // Balance Management
   addDailyBalance: (data) => 
     api.post('/correspondent/balances', data).then(res => res.data),
+    // NEW: Bulk import balances
+  bulkImportBalances: (data) => 
+    api.post('/correspondent/balances/bulk-import', data).then(res => res.data),
   
   getBankBalances: (bankId, params = {}) => 
     api.get(`/correspondent/banks/${bankId}/balances`, { params }).then(res => res.data),

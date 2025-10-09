@@ -6,7 +6,8 @@ import {
   updateDailyBalance, 
   deleteDailyBalance,
   submitDailyBalance,
-  authorizeDailyBalance
+  authorizeDailyBalance,
+  bulkImportDailyBalances // NEW
 } from '../controllers/dailyBalanceController.js';
 import { authenticateToken, requireRole, logActivity } from '../middleware/auth.js';
 
@@ -29,6 +30,14 @@ router.post('/',
   requireRole(['maker', 'authorizer', 'admin']),
   logActivity('create_daily_balance', 'daily_balances'),
   createDailyBalance
+);
+
+// NEW: Bulk import route
+router.post('/bulk-import', 
+  authenticateToken, 
+  requireRole(['maker', 'authorizer', 'admin']),
+  logActivity('bulk_import_daily_balances', 'daily_balances'),
+  bulkImportDailyBalances
 );
 
 router.put('/:id', 

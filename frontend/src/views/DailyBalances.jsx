@@ -5,12 +5,14 @@ import Modal from '../components/common/Modal';
 import { useForm } from '../hooks/useForm';
 import { required, number, composeValidators } from '../utils/validators';
 import { formatCurrency, formatDate } from '../utils/formatters';
-import { Plus, Edit, Trash2, CheckCircle, Clock, Send, RefreshCw } from 'lucide-react';
+import { Plus, Edit, Trash2, CheckCircle, Clock, Send, RefreshCw, Download, Upload } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import * as XLSX from 'xlsx';
 
 const DailyBalances = () => {
   const { hasAnyRole } = useAuth();
   const [showModal, setShowModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [editingBalance, setEditingBalance] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [currencies, setCurrencies] = useState([]);
@@ -22,6 +24,9 @@ const DailyBalances = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [importError, setImportError] = useState(null);
+  const [importSuccess, setImportSuccess] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
 
   // Form state
   const { values, errors, touched, handleChange, handleBlur, validate, reset } = useForm(
@@ -263,6 +268,233 @@ const DailyBalances = () => {
     }
   };
 
+  // Excel Import/Export Functions
+ // Excel Import/Export Functions
+const downloadTemplate = async () => {
+  try {
+    // Filter for only EUR, USD, GBP currencies
+    const targetCurrencies = currencies.filter(currency => 
+      ['EUR', 'USD', 'GBP'].includes(currency.code)
+    );
+
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    
+    // Prepare data for template - create rows for each balance item and currency combination
+    const templateRows = [
+      // Headers
+      ['Balance Date', 'Currency Code', 'Balance Item Code', 'Amount', 'Notes'],
+    ];
+
+    // Get current date for the template
+    const currentDate = new Date().toISOString().split('T')[0];
+
+    // Create sample entries for each balance item and currency combination
+    targetCurrencies.forEach(currency => {
+      balanceItems.forEach(item => {
+        templateRows.push([
+          currentDate, // Current date
+          currency.code, // Currency code
+          item.code, // Balance item code
+          0.00, // Default amount (user will fill this)
+          `Sample ${item.name} for ${currency.code}` // Notes
+        ]);
+      });
+    });
+
+    // Add instructions and reference data
+    templateRows.push(
+      ['', '', '', '', ''],
+      ['INSTRUCTIONS:', '', '', '', ''],
+      ['1. Fill in the Amount column for all rows with your actual balance amounts', '', '', '', ''],
+      ['2. Do not modify the header row or the first 4 columns (Balance Date, Currency Code, Balance Item Code, Notes)', '', '', '', ''],
+      ['3. Balance Date format: YYYY-MM-DD', '', '', '', ''],
+      ['4. All currencies (EUR, USD, GBP) and balance items are pre-populated', '', '', '', ''],
+      ['5. Amount must be numeric - enter 0.00 if no balance for that item', '', '', '', ''],
+      ['6. Delete any rows you do not want to import', '', '', '', ''],
+      ['', '', '', '', ''],
+      ['TEMPLATE SUMMARY:', '', '', '', ''],
+      [`- Currencies: ${targetCurrencies.map(c => c.code).join(', ')}`, '', '', '', ''],
+      [`- Balance Items: ${balanceItems.length} items`, '', '', '', ''],
+      [`- Total Rows: ${targetCurrencies.length * balanceItems.length}`, '', '', '', ''],
+      [`- Date: ${currentDate}`, '', '', '', ''],
+      ['', '', '', '', ''],
+      ['REFERENCE - CURRENCY DETAILS:', 'Code', 'Name', 'Symbol', ''],
+      ...targetCurrencies.map(currency => ['', currency.code, currency.name, currency.symbol || '', '']),
+      ['', '', '', '', ''],
+      ['REFERENCE - BALANCE ITEMS:', 'Code', 'Name', 'Category', 'Description'],
+      ...balanceItems.map(item => ['', item.code, item.name, item.category, item.description || ''])
+    );
+
+    // Create worksheet
+    const ws = XLSX.utils.aoa_to_sheet(templateRows);
+    
+    // Set column widths
+    const colWidths = [
+      { wch: 15 }, // Balance Date
+      { wch: 15 }, // Currency Code
+      { wch: 20 }, // Balance Item Code
+      { wch: 15 }, // Amount
+      { wch: 30 }  // Notes
+    ];
+    ws['!cols'] = colWidths;
+
+    // Add some basic styling to make the template more user-friendly
+    if (ws['!ref']) {
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      
+      // Style header row (row 0)
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+        if (!ws[cellAddress]) continue;
+        if (!ws[cellAddress].s) ws[cellAddress].s = {};
+        ws[cellAddress].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "4472C4" } },
+          alignment: { horizontal: "center" }
+        };
+      }
+
+      // Style instruction rows (find them by content)
+      for (let row = range.s.r; row <= range.e.r; row++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: row, c: 0 });
+        if (ws[cellAddress] && ws[cellAddress].v && typeof ws[cellAddress].v === 'string') {
+          if (ws[cellAddress].v.includes('INSTRUCTIONS:') || 
+              ws[cellAddress].v.includes('TEMPLATE SUMMARY:') ||
+              ws[cellAddress].v.includes('REFERENCE -')) {
+            if (!ws[cellAddress].s) ws[cellAddress].s = {};
+            ws[cellAddress].s = {
+              font: { bold: true, color: { rgb: "FF0000" } },
+              fill: { fgColor: { rgb: "F2F2F2" } }
+            };
+          }
+        }
+      }
+
+      // Freeze the header row so it's always visible
+      ws['!freeze'] = { x: 0, y: 1 };
+    }
+
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Daily Balances Template');
+
+    // Generate file and download
+    const fileName = `daily_balances_comprehensive_template_${currentDate}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    
+  } catch (error) {
+    console.error('Error downloading template:', error);
+    setError('Failed to download template. Please make sure balance items are loaded.');
+  }
+};
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setImportError(null);
+    setImportSuccess(null);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        // Remove header row and get data rows
+        const headers = jsonData[0];
+        const dataRows = jsonData.slice(1).filter(row => row.length > 0 && row[0]); // Skip empty rows
+
+        // Validate headers
+        const expectedHeaders = ['Balance Date', 'Currency Code', 'Balance Item Code', 'Amount', 'Notes'];
+        const isValidHeaders = expectedHeaders.every((header, index) => 
+          headers[index] === header
+        );
+
+        if (!isValidHeaders) {
+          setImportError('Invalid template format. Please download the latest template.');
+          return;
+        }
+
+        // Process data
+        const processedData = dataRows.map((row, index) => {
+          const [balanceDate, currencyCode, itemCode, amount, notes] = row;
+          
+          // Find currency and item IDs
+          const currency = currencies.find(c => c.code === currencyCode);
+          const balanceItem = balanceItems.find(item => item.code === itemCode);
+
+          return {
+            balanceDate,
+            currencyCode,
+            currencyId: currency?.id,
+            itemCode,
+            itemId: balanceItem?.id,
+            amount: parseFloat(amount) || 0,
+            notes: notes || '',
+            rowNumber: index + 2, // +2 because of header and 1-based indexing
+            isValid: currency && balanceItem && amount
+          };
+        });
+
+        // Validate data
+        const invalidRows = processedData.filter(item => !item.isValid);
+        if (invalidRows.length > 0) {
+          const errorDetails = invalidRows.map(item => 
+            `Row ${item.rowNumber}: Invalid currency code (${item.currencyCode}) or balance item code (${item.itemCode})`
+          ).join('\n');
+          setImportError(`Invalid data found:\n${errorDetails}`);
+          return;
+        }
+
+        // Show preview and confirm
+        setImportPreviewData(processedData.filter(item => item.isValid));
+        setShowImportModal(true);
+
+      } catch (error) {
+        console.error('Error processing file:', error);
+        setImportError('Error processing file. Please check the format and try again.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const [importPreviewData, setImportPreviewData] = useState([]);
+
+  const confirmImport = async () => {
+    try {
+      setImportLoading(true);
+      setImportError(null);
+
+      const importData = importPreviewData.map(item => ({
+        balanceDate: item.balanceDate,
+        currencyId: item.currencyId,
+        itemId: item.itemId,
+        amount: item.amount,
+        notes: item.notes
+      }));
+
+      const result = await dailyBalanceService.bulkImport(importData);
+      
+      setImportSuccess(`Successfully imported ${result.created} balances. ${result.updated} balances updated.`);
+      setShowImportModal(false);
+      setImportPreviewData([]);
+      refreshBalances();
+      
+      // Reset file input
+      const fileInput = document.querySelector('input[type="file"]');
+      if (fileInput) fileInput.value = '';
+      
+    } catch (error) {
+      console.error('Error importing balances:', error);
+      setImportError(error.response?.data?.error || 'Failed to import balances');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   const balanceColumns = [
     { 
       key: 'item', 
@@ -389,6 +621,26 @@ const DailyBalances = () => {
             onChange={(e) => setSelectedDate(new Date(e.target.value))}
             className="form-input"
           />
+          
+          {/* Import/Export Buttons */}
+          <button
+            onClick={downloadTemplate}
+            className="btn btn-secondary"
+            disabled={currenciesLoading || balanceItems.length === 0}
+          >
+            <Download size={16} /> Download Template
+          </button>
+          
+          <label className="btn btn-secondary" style={{ cursor: 'pointer' }}>
+            <Upload size={16} /> Import Excel
+            <input
+              type="file"
+              accept=".xlsx, .xls"
+              onChange={handleFileUpload}
+              style={{ display: 'none' }}
+            />
+          </label>
+
           <button
             onClick={() => {
               setEditingBalance(null);
@@ -415,6 +667,21 @@ const DailyBalances = () => {
         </div>
       </div>
 
+      {/* Import Status Messages */}
+      {importError && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {importError.split('\n').map((line, index) => (
+            <div key={index}>{line}</div>
+          ))}
+        </div>
+      )}
+
+      {importSuccess && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+          {importSuccess}
+        </div>
+      )}
+
       {/* Tables */}
       {Object.entries(groupedBalances).map(([currency, currencyBalances]) => (
         <div key={currency} className="card" style={{ marginBottom: '2rem' }}>
@@ -434,7 +701,7 @@ const DailyBalances = () => {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Create/Edit Balance Modal */}
       <Modal
         isOpen={showModal}
         onClose={() => {
@@ -539,6 +806,77 @@ const DailyBalances = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Import Preview Modal */}
+      <Modal
+        isOpen={showImportModal}
+        onClose={() => {
+          setShowImportModal(false);
+          setImportPreviewData([]);
+          setImportError(null);
+        }}
+        title="Confirm Bulk Import"
+        size="large"
+      >
+        <div>
+          <p style={{ marginBottom: '1rem' }}>
+            Please review the {importPreviewData.length} balances that will be imported:
+          </p>
+          
+          <div style={{ maxHeight: '400px', overflow: 'auto', marginBottom: '1rem' }}>
+            <table className="table" style={{ fontSize: '0.875rem' }}>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Currency</th>
+                  <th>Item Code</th>
+                  <th>Amount</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {importPreviewData.slice(0, 50).map((item, index) => (
+                  <tr key={index}>
+                    <td>{item.balanceDate}</td>
+                    <td>{item.currencyCode}</td>
+                    <td>{item.itemCode}</td>
+                    <td>{formatCurrency(item.amount)}</td>
+                    <td>{item.notes}</td>
+                  </tr>
+                ))}
+                {importPreviewData.length > 50 && (
+                  <tr>
+                    <td colSpan="5" style={{ textAlign: 'center', fontStyle: 'italic' }}>
+                      ... and {importPreviewData.length - 50} more records
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowImportModal(false);
+                setImportPreviewData([]);
+              }}
+              className="btn btn-secondary"
+              disabled={importLoading}
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={confirmImport} 
+              className="btn btn-primary"
+              disabled={importLoading}
+            >
+              {importLoading ? 'Importing...' : `Import ${importPreviewData.length} Balances`}
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

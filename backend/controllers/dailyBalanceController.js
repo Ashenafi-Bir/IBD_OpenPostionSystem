@@ -385,3 +385,86 @@ export const authorizeDailyBalance = [
     }
   }
 ];
+// Add the new bulk import function
+export const bulkImportDailyBalances = [
+  body().isArray().withMessage('Request body must be an array'),
+  body('*.balanceDate').isDate().withMessage('Invalid date format'),
+  body('*.currencyId').isInt().withMessage('Invalid currency ID'),
+  body('*.itemId').isInt().withMessage('Invalid item ID'),
+  body('*.amount').isDecimal().withMessage('Invalid amount'),
+  body('*.notes').optional().isString(),
+  handleValidationErrors,
+
+  async (req, res) => {
+    const transaction = await models.sequelize.transaction();
+    
+    try {
+      const balancesData = req.body;
+      const results = {
+        created: 0,
+        updated: 0,
+        errors: []
+      };
+
+      for (let i = 0; i < balancesData.length; i++) {
+        const balanceData = balancesData[i];
+        
+        try {
+          // Check if balance already exists for this date, currency, and item
+          const existingBalance = await models.DailyBalance.findOne({
+            where: {
+              balanceDate: balanceData.balanceDate,
+              currency_id: balanceData.currencyId,
+              item_id: balanceData.itemId
+            },
+            transaction
+          });
+
+          if (existingBalance) {
+            // Update existing balance
+            await existingBalance.update({
+              amount: balanceData.amount,
+              notes: balanceData.notes || existingBalance.notes,
+              status: req.user.role === 'authorizer' ? 'authorized' : 'draft'
+            }, { transaction });
+            results.updated++;
+          } else {
+            // Create new balance
+            await models.DailyBalance.create({
+              balanceDate: balanceData.balanceDate,
+              currency_id: balanceData.currencyId,
+              item_id: balanceData.itemId,
+              amount: balanceData.amount,
+              notes: balanceData.notes,
+              created_by: req.user.id,
+              status: req.user.role === 'authorizer' ? 'authorized' : 'draft'
+            }, { transaction });
+            results.created++;
+          }
+        } catch (error) {
+          results.errors.push({
+            row: i + 1,
+            error: error.message,
+            data: balanceData
+          });
+        }
+      }
+
+      await transaction.commit();
+
+      res.json({
+        success: true,
+        message: `Bulk import completed: ${results.created} created, ${results.updated} updated`,
+        ...results
+      });
+
+    } catch (error) {
+      await transaction.rollback();
+      console.error('Error in bulk import:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to import balances'
+      });
+    }
+  }
+];
