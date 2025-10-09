@@ -5,7 +5,7 @@ import {
   Home, 
   BarChart3, 
   Calculator, 
-  Landmark,   // For Correspondent Banks
+  Landmark,  
   CreditCard, 
   Users,
   LogOut,
@@ -14,15 +14,15 @@ import {
   Folder,
   Settings,
   Globe,
-  ShieldCheck, // Icon for Paid-up Capital
-  FileText // Icon for Daily Balance Entry
+  ShieldCheck, 
+  FileText 
 } from 'lucide-react';
 
 const Sidebar = () => {
   const { user, logout } = useAuth();
 
 const menuItems = [
-    { path: '/dashboard', icon: Home, label: 'Dash', roles: ['maker', 'authorizer', 'admin'] },
+    { path: '/dashboard', icon: Home, label: 'Dashboard', roles: ['maker', 'authorizer', 'admin'] },
     { path: '/daily-balances', icon: Database, label: 'Daily Bal.', roles: ['maker', 'authorizer', 'admin'] },
     { path: '/transactions', icon: CreditCard, label: 'Trans.', roles: ['maker', 'authorizer', 'admin'] },
     { path: '/exchange-rates', icon: DollarSign, label: 'Exch. Rates', roles: ['maker', 'authorizer', 'admin'] },
@@ -30,11 +30,11 @@ const menuItems = [
     { path: '/position-report', icon: Calculator, label: 'Pos. Report', roles: ['maker', 'authorizer', 'admin'] },
     { path: '/correspondent-reports', icon: Landmark, label: 'Cor. Reports', roles: ['maker', 'authorizer', 'admin'] },
     { path: '/paid-up-capital', icon: ShieldCheck, label: 'Paid-up Cap.', roles: ['maker', 'authorizer', 'admin'] },
-    { path: '/CorrespondentBankManagement', icon: Home, label: 'Cor. Bank Mgmt.', roles: ['maker', 'authorizer', 'admin'] },
-    { path: '/DailyBalanceEntry', icon: FileText, label: 'Daily Bal. Entry', roles: ['maker', 'authorizer', 'admin'] },
+    { path: '/DailyBalanceEntry', icon: FileText, label: 'Cor. Bal. Entry', roles: ['maker', 'authorizer', 'admin'] },
     { path: '/balance-items', icon: Folder, label: 'Bal. Items', roles: ['admin'] },
-    { path: '/users', icon: Users, label: 'Users', roles: ['admin'] },
+    { path: '/CorrespondentBankManagement', icon: Home, label: 'Cor. Bank Mgmt.', roles: ['maker', 'authorizer', 'admin'] },
     { path: '/currency-management', icon: Globe, label: 'Curr. Mgmt.', roles: ['admin'] },
+     { path: '/users', icon: Users, label: 'Users', roles: ['admin'] },
 ];
 
 

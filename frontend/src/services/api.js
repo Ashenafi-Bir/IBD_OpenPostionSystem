@@ -129,13 +129,23 @@ export const dailyBalanceService = {
 
 // Correspondent Banking API - FIXED: Using api instance instead of axios directly
 // In your api.js file, update the correspondentService.getBanks method
+// In your api.js file, update the correspondentService
 export const correspondentService = {
-  // Bank Management
+  // Bank Management - UPDATED WITH FULL CRUD
   createBank: (data) => 
     api.post('/correspondent/banks', data).then(res => res.data),
   
+  // Update all bank fields, not just limits
+  updateBank: (bankId, data) => 
+    api.put(`/correspondent/banks/${bankId}`, data).then(res => res.data),
+  
+  // Keep updateBankLimits for backward compatibility if needed
   updateBankLimits: (bankId, data) => 
     api.patch(`/correspondent/banks/${bankId}/limits`, data).then(res => res.data),
+  
+  // Add delete bank endpoint
+  deleteBank: (bankId) => 
+    api.delete(`/correspondent/banks/${bankId}`).then(res => res.data),
   
   getBanks: (currencyId = null) => {
     const params = currencyId ? { currencyId } : {};
@@ -171,7 +181,6 @@ export const correspondentService = {
   resolveAlert: (alertId) => 
     api.patch(`/correspondent/alerts/${alertId}/resolve`).then(res => res.data),
 };
-
 // Transaction services
 export const transactionService = {
   create: (data) => 

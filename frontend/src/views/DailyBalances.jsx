@@ -415,14 +415,6 @@ const DailyBalances = () => {
         </div>
       </div>
 
-      {/* Debug info - remove in production */}
-      <div style={{ marginBottom: '1rem', padding: '1rem', background: '#f5f5f5', borderRadius: '4px' }}>
-        <small>
-          <strong>Debug Info:</strong> Loaded {balances.length} balances, {balanceItems.length} balance items. 
-          Check console for detailed balance structure.
-        </small>
-      </div>
-
       {/* Tables */}
       {Object.entries(groupedBalances).map(([currency, currencyBalances]) => (
         <div key={currency} className="card" style={{ marginBottom: '2rem' }}>

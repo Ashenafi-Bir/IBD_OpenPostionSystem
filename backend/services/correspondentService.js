@@ -4,58 +4,435 @@ import { Op } from 'sequelize';
 export class CorrespondentService {
   
   static async createBank(bankData, userId) {
-    try {
-      // Validate currency exists
-      const currency = await models.Currency.findByPk(bankData.currencyId);
+  let transaction;
+  
+  try {
+    transaction = await models.sequelize.transaction();
+    
+    // Validate currency exists
+    const currency = await models.Currency.findByPk(bankData.currencyId, { transaction });
+    if (!currency) {
+      throw new Error('Invalid currency ID');
+    }
+
+    // Check if bank with same name, currency, and account number already exists
+    const existingBank = await models.sequelize.query(
+      `SELECT id FROM correspondent_banks 
+       WHERE bankName = ? AND currencyId = ? AND accountNumber = ? AND isActive = true`,
+      {
+        replacements: [bankData.bankName, bankData.currencyId, bankData.accountNumber || ''],
+        type: models.sequelize.QueryTypes.SELECT,
+        transaction
+      }
+    );
+
+    if (existingBank.length > 0) {
+      throw new Error('A bank with the same name, currency, and account number already exists.');
+    }
+
+    console.log('Creating bank with data:', bankData);
+    
+    // Use raw query to avoid Sequelize naming issues
+    const fields = [];
+    const placeholders = [];
+    const values = [];
+    
+    // Define all possible fields
+    const fieldMappings = {
+      bankName: 'bankName',
+      branchAddress: 'branchAddress',
+      accountNumber: 'accountNumber',
+      swiftCode: 'swiftCode',
+      currencyId: 'currencyId',
+      maxLimit: 'maxLimit',
+      minLimit: 'minLimit',
+      isActive: 'isActive',
+      createdBy: 'createdBy',
+      createdAt: 'createdAt',
+      updatedAt: 'updatedAt'
+    };
+    
+    Object.keys(fieldMappings).forEach(key => {
+      if (bankData[key] !== undefined && bankData[key] !== null && bankData[key] !== '') {
+        fields.push(fieldMappings[key]);
+        placeholders.push('?');
+        values.push(bankData[key]);
+      }
+    });
+    
+    // Add default values for required fields that might be missing
+    if (!fields.includes('isActive')) {
+      fields.push('isActive');
+      placeholders.push('?');
+      values.push(true);
+    }
+    
+    if (!fields.includes('createdBy')) {
+      fields.push('createdBy');
+      placeholders.push('?');
+      values.push(userId);
+    }
+    
+    const now = new Date();
+    if (!fields.includes('createdAt')) {
+      fields.push('createdAt');
+      placeholders.push('?');
+      values.push(now);
+    }
+    
+    if (!fields.includes('updatedAt')) {
+      fields.push('updatedAt');
+      placeholders.push('?');
+      values.push(now);
+    }
+    
+    // Execute the insert
+    const result = await models.sequelize.query(
+      `INSERT INTO correspondent_banks (${fields.join(', ')}) VALUES (${placeholders.join(', ')})`,
+      {
+        replacements: values,
+        type: models.sequelize.QueryTypes.INSERT,
+        transaction
+      }
+    );
+
+    const bankId = result[0];
+
+    await transaction.commit();
+
+    // Return the created bank with currency info
+    const createdBanks = await models.sequelize.query(
+      `SELECT 
+        cb.id, cb.bankName, cb.branchAddress, cb.accountNumber, cb.swiftCode,
+        cb.currencyId, cb.maxLimit, cb.minLimit, cb.isActive, cb.createdBy,
+        cb.createdAt, cb.updatedAt,
+        c.id as 'currency.id', c.code as 'currency.code', c.name as 'currency.name', c.symbol as 'currency.symbol'
+      FROM correspondent_banks cb
+      LEFT JOIN currencies c ON cb.currencyId = c.id
+      WHERE cb.id = ?`,
+      {
+        replacements: [bankId],
+        type: models.sequelize.QueryTypes.SELECT
+      }
+    );
+
+    if (createdBanks.length === 0) {
+      throw new Error('Bank not found after creation');
+    }
+
+    const createdBank = createdBanks[0];
+    const resultBank = {
+      id: createdBank.id,
+      bankName: createdBank.bankName,
+      branchAddress: createdBank.branchAddress,
+      accountNumber: createdBank.accountNumber,
+      swiftCode: createdBank.swiftCode,
+      currencyId: createdBank.currencyId,
+      maxLimit: createdBank.maxLimit,
+      minLimit: createdBank.minLimit,
+      isActive: createdBank.isActive,
+      createdBy: createdBank.createdBy,
+      createdAt: createdBank.createdAt,
+      updatedAt: createdBank.updatedAt,
+      currency: {
+        id: createdBank['currency.id'],
+        code: createdBank['currency.code'],
+        name: createdBank['currency.name'],
+        symbol: createdBank['currency.symbol']
+      }
+    };
+
+    return resultBank;
+  } catch (error) {
+    if (transaction) await transaction.rollback();
+    console.error('Database error in createBank:', error);
+    
+    // Handle specific error cases
+    if (error.message.includes('already exists')) {
+      throw new Error(error.message);
+    } else if (error.message.includes('Duplicate entry')) {
+      throw new Error('A bank with the same name, currency, and account number already exists.');
+    } else if (error.message.includes('foreign key constraint')) {
+      throw new Error('Invalid currency selected.');
+    }
+    
+    throw new Error(`Failed to create bank: ${error.message}`);
+  }
+}
+// Updated updateBank method using raw queries to avoid Sequelize naming issues
+static async updateBank(bankId, bankData, userId) {
+  let transaction;
+  
+  try {
+    transaction = await models.sequelize.transaction();
+    
+    // First, verify the bank exists using a simple query
+    const existingBank = await models.sequelize.query(
+      'SELECT id FROM correspondent_banks WHERE id = ? AND isActive = true',
+      {
+        replacements: [bankId],
+        type: models.sequelize.QueryTypes.SELECT,
+        transaction
+      }
+    );
+
+    if (existingBank.length === 0) {
+      throw new Error('Bank not found');
+    }
+
+    // Validate currency if being updated
+    if (bankData.currencyId) {
+      const currency = await models.Currency.findByPk(bankData.currencyId, { transaction });
       if (!currency) {
         throw new Error('Invalid currency ID');
       }
-
-      const bank = await models.CorrespondentBank.create({
-        ...bankData,
-        createdBy: userId
-      });
-
-      return await models.CorrespondentBank.findByPk(bank.id, {
-        attributes: [
-          'id', 'bankName', 'branchAddress', 'accountNumber', 
-          'swiftCode', 'currencyId', 'maxLimit', 'minLimit', 
-          'isActive', 'createdBy', 'createdAt', 'updatedAt'
-        ],
-        include: [{
-          model: models.Currency,
-          as: 'currency',
-          attributes: ['id', 'code', 'name', 'symbol']
-        }]
-      });
-    } catch (error) {
-      throw new Error(`Failed to create bank: ${error.message}`);
     }
-  }
 
-  static async updateBankLimits(bankId, limits, userId) {
+    console.log('Updating bank with data:', bankData);
+    
+    // Build the update query dynamically
+    const updateFields = [];
+    const updateValues = [];
+    
+    Object.keys(bankData).forEach(key => {
+      if (bankData[key] !== undefined && key !== 'id') {
+        updateFields.push(`${key} = ?`);
+        updateValues.push(bankData[key]);
+      }
+    });
+    
+    if (updateFields.length === 0) {
+      throw new Error('No fields to update');
+    }
+    
+    updateValues.push(bankId);
+    
+    // Execute raw update query
+    await models.sequelize.query(
+      `UPDATE correspondent_banks SET ${updateFields.join(', ')} WHERE id = ?`,
+      {
+        replacements: updateValues,
+        type: models.sequelize.QueryTypes.UPDATE,
+        transaction
+      }
+    );
+
+    await transaction.commit();
+
+    // Return updated bank using a raw query to avoid association issues
+    const updatedBanks = await models.sequelize.query(
+      `SELECT 
+        cb.id, cb.bankName, cb.branchAddress, cb.accountNumber, cb.swiftCode,
+        cb.currencyId, cb.maxLimit, cb.minLimit, cb.isActive, cb.createdBy,
+        cb.createdAt, cb.updatedAt,
+        c.id as 'currency.id', c.code as 'currency.code', c.name as 'currency.name', c.symbol as 'currency.symbol'
+      FROM correspondent_banks cb
+      LEFT JOIN currencies c ON cb.currencyId = c.id
+      WHERE cb.id = ?`,
+      {
+        replacements: [bankId],
+        type: models.sequelize.QueryTypes.SELECT
+      }
+    );
+
+    if (updatedBanks.length === 0) {
+      throw new Error('Bank not found after update');
+    }
+
+    // Transform the raw result to match the expected format
+    const updatedBank = updatedBanks[0];
+    const result = {
+      id: updatedBank.id,
+      bankName: updatedBank.bankName,
+      branchAddress: updatedBank.branchAddress,
+      accountNumber: updatedBank.accountNumber,
+      swiftCode: updatedBank.swiftCode,
+      currencyId: updatedBank.currencyId,
+      maxLimit: updatedBank.maxLimit,
+      minLimit: updatedBank.minLimit,
+      isActive: updatedBank.isActive,
+      createdBy: updatedBank.createdBy,
+      createdAt: updatedBank.createdAt,
+      updatedAt: updatedBank.updatedAt,
+      currency: {
+        id: updatedBank['currency.id'],
+        code: updatedBank['currency.code'],
+        name: updatedBank['currency.name'],
+        symbol: updatedBank['currency.symbol']
+      }
+    };
+
+    return result;
+  } catch (error) {
+    if (transaction) await transaction.rollback();
+    console.error('Database error in updateBank:', error);
+    console.error('Error details:', {
+      bankId,
+      bankData,
+      errorMessage: error.message,
+      errorStack: error.stack
+    });
+    throw new Error(`Failed to update bank: ${error.message}`);
+  }
+}
+
+// Also update updateBankLimits to use the same approach
+static async updateBankLimits(bankId, limits, userId) {
+  let transaction;
+  
+  try {
+    transaction = await models.sequelize.transaction();
+    
+    // Verify bank exists
+    const existingBank = await models.sequelize.query(
+      'SELECT id FROM correspondent_banks WHERE id = ? AND isActive = true',
+      {
+        replacements: [bankId],
+        type: models.sequelize.QueryTypes.SELECT,
+        transaction
+      }
+    );
+
+    if (existingBank.length === 0) {
+      throw new Error('Bank not found');
+    }
+
+    // Build update fields
+    const updateFields = [];
+    const updateValues = [];
+    
+    if (limits.maxLimit !== undefined) {
+      updateFields.push('maxLimit = ?');
+      updateValues.push(limits.maxLimit);
+    }
+    if (limits.minLimit !== undefined) {
+      updateFields.push('minLimit = ?');
+      updateValues.push(limits.minLimit);
+    }
+    
+    if (updateFields.length === 0) {
+      throw new Error('No limit fields to update');
+    }
+    
+    updateValues.push(bankId);
+    
+    // Execute raw update
+    await models.sequelize.query(
+      `UPDATE correspondent_banks SET ${updateFields.join(', ')} WHERE id = ?`,
+      {
+        replacements: updateValues,
+        type: models.sequelize.QueryTypes.UPDATE,
+        transaction
+      }
+    );
+
+    await transaction.commit();
+
+    // Return updated bank
+    const updatedBanks = await models.sequelize.query(
+      `SELECT 
+        cb.id, cb.bankName, cb.branchAddress, cb.accountNumber, cb.swiftCode,
+        cb.currencyId, cb.maxLimit, cb.minLimit, cb.isActive, cb.createdBy,
+        cb.createdAt, cb.updatedAt,
+        c.id as 'currency.id', c.code as 'currency.code', c.name as 'currency.name', c.symbol as 'currency.symbol'
+      FROM correspondent_banks cb
+      LEFT JOIN currencies c ON cb.currencyId = c.id
+      WHERE cb.id = ?`,
+      {
+        replacements: [bankId],
+        type: models.sequelize.QueryTypes.SELECT
+      }
+    );
+
+    if (updatedBanks.length === 0) {
+      throw new Error('Bank not found after update');
+    }
+
+    const updatedBank = updatedBanks[0];
+    const result = {
+      id: updatedBank.id,
+      bankName: updatedBank.bankName,
+      branchAddress: updatedBank.branchAddress,
+      accountNumber: updatedBank.accountNumber,
+      swiftCode: updatedBank.swiftCode,
+      currencyId: updatedBank.currencyId,
+      maxLimit: updatedBank.maxLimit,
+      minLimit: updatedBank.minLimit,
+      isActive: updatedBank.isActive,
+      createdBy: updatedBank.createdBy,
+      createdAt: updatedBank.createdAt,
+      updatedAt: updatedBank.updatedAt,
+      currency: {
+        id: updatedBank['currency.id'],
+        code: updatedBank['currency.code'],
+        name: updatedBank['currency.name'],
+        symbol: updatedBank['currency.symbol']
+      }
+    };
+
+    return result;
+  } catch (error) {
+    if (transaction) await transaction.rollback();
+    console.error('Database error in updateBankLimits:', error);
+    throw new Error(`Failed to update bank limits: ${error.message}`);
+  }
+}
+
+  // Updated deleteBank method with simpler approach
+  static async deleteBank(bankId, userId) {
+    let transaction;
+    
     try {
-      const bank = await models.CorrespondentBank.findByPk(bankId);
+      transaction = await models.sequelize.transaction();
+      
+      const bank = await models.CorrespondentBank.findByPk(bankId, { transaction });
       if (!bank) {
         throw new Error('Bank not found');
       }
 
-      await bank.update(limits);
-
-      return await models.CorrespondentBank.findByPk(bankId, {
-        attributes: [
-          'id', 'bankName', 'branchAddress', 'accountNumber', 
-          'swiftCode', 'currencyId', 'maxLimit', 'minLimit', 
-          'isActive', 'createdBy', 'createdAt', 'updatedAt'
-        ],
-        include: [{
-          model: models.Currency,
-          as: 'currency',
-          attributes: ['id', 'code', 'name', 'symbol']
-        }]
+      // Check if bank has any balances
+      const balances = await models.CorrespondentBalance.count({
+        where: { bankId },
+        transaction
       });
+
+      if (balances > 0) {
+        throw new Error('Cannot delete bank with existing balances. Please remove balances first.');
+      }
+
+      // Use direct destroy instead of update for better performance
+      await bank.destroy({ transaction });
+      await transaction.commit();
+      
+      return true;
     } catch (error) {
-      throw new Error(`Failed to update bank limits: ${error.message}`);
+      if (transaction) await transaction.rollback();
+      console.error('Database error in deleteBank:', error);
+      console.error('Error details:', {
+        bankId,
+        errorMessage: error.message,
+        errorStack: error.stack
+      });
+      throw new Error(`Failed to delete bank: ${error.message}`);
+    }
+  }
+
+  // Alternative delete method using raw query if above doesn't work
+  static async deleteBankAlternative(bankId, userId) {
+    try {
+      // Use raw query to avoid Sequelize naming issues
+      const result = await models.sequelize.query(
+        'DELETE FROM correspondent_banks WHERE id = ?',
+        {
+          replacements: [bankId],
+          type: models.sequelize.QueryTypes.DELETE
+        }
+      );
+      
+      return true;
+    } catch (error) {
+      console.error('Database error in deleteBankAlternative:', error);
+      throw new Error(`Failed to delete bank: ${error.message}`);
     }
   }
 
@@ -381,6 +758,7 @@ export class CorrespondentService {
       throw new Error(`Failed to generate cash cover report: ${error.message}`);
     }
   }
+
   static async getActiveAlerts(date = null) {
     try {
       const whereClause = {

@@ -8,13 +8,31 @@ import { Op } from 'sequelize';
 export const createBank = [
   body('bankName').notEmpty().withMessage('Bank name is required'),
   body('currencyId').isInt().withMessage('Currency ID must be a valid integer'),
-  body('maxLimit').optional().isFloat({ min: 0, max: 100 }).withMessage('Max limit must be between 0 and 100'),
-  body('minLimit').optional().isFloat({ min: 0, max: 100 }).withMessage('Min limit must be between 0 and 100'),
+  body('maxLimit')
+    .optional({ checkFalsy: true })
+    .isFloat({ min: 0, max: 100 })
+    .withMessage('Max limit must be between 0 and 100'),
+  body('minLimit')
+    .optional({ checkFalsy: true })
+    .isFloat({ min: 0, max: 100 })
+    .withMessage('Min limit must be between 0 and 100'),
   handleValidationErrors,
 
   async (req, res) => {
     try {
-      const bank = await CorrespondentService.createBank(req.body, req.user.id);
+      // Clean up the data - convert empty strings to null for optional fields
+      const cleanData = {
+        ...req.body,
+        maxLimit: req.body.maxLimit || null,
+        minLimit: req.body.minLimit || null,
+        branchAddress: req.body.branchAddress || null,
+        accountNumber: req.body.accountNumber || null,
+        swiftCode: req.body.swiftCode || null
+      };
+
+      console.log('Creating bank with data:', cleanData);
+      const bank = await CorrespondentService.createBank(cleanData, req.user.id);
+      
       res.status(201).json({
         success: true,
         data: bank,
@@ -30,15 +48,88 @@ export const createBank = [
   }
 ];
 
-export const updateBankLimits = [
+// New controller for updating all bank fields
+// New controller for updating all bank fields
+export const updateBank = [
   param('id').isInt().withMessage('Invalid bank ID'),
-  body('maxLimit').optional().isFloat({ min: 0, max: 100 }).withMessage('Max limit must be between 0 and 100'),
-  body('minLimit').optional().isFloat({ min: 0, max: 100 }).withMessage('Min limit must be between 0 and 100'),
+  body('bankName').optional().notEmpty().withMessage('Bank name cannot be empty'),
+  body('currencyId').optional().isInt().withMessage('Currency ID must be a valid integer'),
+  body('maxLimit')
+    .optional({ checkFalsy: true })
+    .isFloat({ min: 0, max: 100 })
+    .withMessage('Max limit must be between 0 and 100'),
+  body('minLimit')
+    .optional({ checkFalsy: true })
+    .isFloat({ min: 0, max: 100 })
+    .withMessage('Min limit must be between 0 and 100'),
+  body('branchAddress').optional(),
+  body('accountNumber').optional(),
+  body('swiftCode').optional(),
   handleValidationErrors,
 
   async (req, res) => {
     try {
-      const bank = await CorrespondentService.updateBankLimits(req.params.id, req.body, req.user.id);
+      // Clean up the data - handle empty strings properly
+      const cleanData = {
+        ...req.body,
+        maxLimit: req.body.maxLimit === '' ? null : req.body.maxLimit,
+        minLimit: req.body.minLimit === '' ? null : req.body.minLimit,
+        branchAddress: req.body.branchAddress || null,
+        accountNumber: req.body.accountNumber || null,
+        swiftCode: req.body.swiftCode || null
+      };
+
+      console.log('Updating bank with data:', {
+        bankId: req.params.id,
+        data: cleanData,
+        userId: req.user.id
+      });
+
+      const bank = await CorrespondentService.updateBank(req.params.id, cleanData, req.user.id);
+      
+      res.json({
+        success: true,
+        data: bank,
+        message: 'Bank updated successfully'
+      });
+    } catch (error) {
+      console.error('Error in updateBank:', error);
+      res.status(400).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+];
+
+export const updateBankLimits = [
+  param('id').isInt().withMessage('Invalid bank ID'),
+  body('maxLimit')
+    .optional({ checkFalsy: true })
+    .isFloat({ min: 0, max: 100 })
+    .withMessage('Max limit must be between 0 and 100'),
+  body('minLimit')
+    .optional({ checkFalsy: true })
+    .isFloat({ min: 0, max: 100 })
+    .withMessage('Min limit must be between 0 and 100'),
+  handleValidationErrors,
+
+  async (req, res) => {
+    try {
+      // Clean up the data - handle empty strings properly
+      const cleanData = {
+        maxLimit: req.body.maxLimit === '' ? null : req.body.maxLimit,
+        minLimit: req.body.minLimit === '' ? null : req.body.minLimit
+      };
+
+      console.log('Updating bank limits:', {
+        bankId: req.params.id,
+        data: cleanData,
+        userId: req.user.id
+      });
+
+      const bank = await CorrespondentService.updateBankLimits(req.params.id, cleanData, req.user.id);
+      
       res.json({
         success: true,
         data: bank,
@@ -54,6 +145,40 @@ export const updateBankLimits = [
   }
 ];
 
+// New controller for deleting banks
+// New controller for deleting banks
+export const deleteBank = [
+  param('id').isInt().withMessage('Invalid bank ID'),
+  handleValidationErrors,
+
+  async (req, res) => {
+    try {
+      // Try the main delete method first
+      await CorrespondentService.deleteBank(req.params.id, req.user.id);
+      
+      res.json({
+        success: true,
+        message: 'Bank deleted successfully'
+      });
+    } catch (error) {
+      console.error('Error in deleteBank:', error);
+      
+      // If it fails, try alternative method
+      try {
+        await CorrespondentService.deleteBankAlternative(req.params.id, req.user.id);
+        res.json({
+          success: true,
+          message: 'Bank deleted successfully'
+        });
+      } catch (altError) {
+        res.status(400).json({
+          success: false,
+          error: error.message // Return original error message
+        });
+      }
+    }
+  }
+];
 export const getBanks = [
   query('currencyId').optional().isInt(),
   handleValidationErrors,
@@ -65,7 +190,6 @@ export const getBanks = [
         whereClause.currencyId = req.query.currencyId;
       }
 
-      // FIXED: Explicitly define attributes to prevent Sequelize from adding currency_id
       const banks = await models.CorrespondentBank.findAll({
         where: whereClause,
         attributes: [
@@ -108,7 +232,7 @@ export const getBanks = [
   }
 ];
 
-// Balance Management - NO LIMIT VALIDATION
+// Balance Management
 export const addDailyBalance = [
   body('bankId').isInt().withMessage('Invalid bank ID'),
   body('balanceDate').isDate().withMessage('Invalid date format'),
@@ -179,7 +303,7 @@ export const getBankBalances = [
   }
 ];
 
-// Reports - These will show limit violations but won't prevent entry
+// Reports
 export const getLimitsReport = [
   query('date').isDate().withMessage('Invalid date format'),
   handleValidationErrors,
@@ -223,7 +347,7 @@ export const getCashCoverReport = [
   }
 ];
 
-// Alerts - These will track limit violations for reporting
+// Alerts
 export const getActiveAlerts = [
   query('date').optional().isDate(),
   handleValidationErrors,

@@ -1,7 +1,9 @@
 import express from 'express';
 import { 
   createBank,
+  updateBank,
   updateBankLimits,
+  deleteBank,
   getBanks,
   addDailyBalance,
   getBankBalances,
@@ -14,7 +16,7 @@ import { authenticateToken, requireRole, logActivity } from '../middleware/auth.
 
 const router = express.Router();
 
-// Bank Management
+// Bank Management - UPDATED WITH FULL CRUD
 router.post('/banks', 
   authenticateToken, 
   // requireRole(['maker', 'admin']),
@@ -22,11 +24,28 @@ router.post('/banks',
   createBank
 );
 
+// New endpoint for updating all bank fields
+router.put('/banks/:id', 
+  authenticateToken, 
+  // requireRole(['maker', 'admin']),
+  logActivity('update_correspondent_bank', 'correspondent'),
+  updateBank
+);
+
+// Keep existing limits update endpoint for backward compatibility
 router.patch('/banks/:id/limits', 
   authenticateToken, 
   // requireRole(['maker', 'admin']),
   logActivity('update_bank_limits', 'correspondent'),
   updateBankLimits
+);
+
+// New endpoint for deleting banks
+router.delete('/banks/:id', 
+  authenticateToken, 
+  // requireRole(['admin']),
+  logActivity('delete_correspondent_bank', 'correspondent'),
+  deleteBank
 );
 
 router.get('/banks', 
@@ -75,5 +94,4 @@ router.patch('/alerts/:id/resolve',
   logActivity('resolve_alert', 'correspondent'),
   resolveAlert
 );
-
 export default router;

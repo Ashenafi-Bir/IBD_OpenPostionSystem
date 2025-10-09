@@ -59,17 +59,17 @@ export default (sequelize, DataTypes) => {
   }, {
     tableName: 'correspondent_banks',
     timestamps: true,
-    indexes: [
-      {
-        unique: true,
-        fields: ['bankName', 'currencyId', 'accountNumber']
-      }
-    ]
+    underscored: false,
+    // Add these to prevent Sequelize from using underscored field names
+    define: {
+      underscored: false
+    }
   });
 
   CorrespondentBank.associate = function(models) {
     CorrespondentBank.belongsTo(models.Currency, { 
       foreignKey: 'currencyId',
+      targetKey: 'id',
       as: 'currency'
     });
     CorrespondentBank.hasMany(models.CorrespondentBalance, { 
@@ -88,7 +88,7 @@ export default (sequelize, DataTypes) => {
     if (this.maxLimit !== null && currentPercentage > this.maxLimit) {
       violations.push({
         type: 'MAX_LIMIT_EXCEEDED',
-        current: currentPercentage,
+        current: currentPercentage, 
         limit: this.maxLimit,
         variation: currentPercentage - this.maxLimit
       });

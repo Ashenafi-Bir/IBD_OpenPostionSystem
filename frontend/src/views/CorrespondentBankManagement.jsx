@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { correspondentService, currencyService } from '../services/api';
-import { Plus, Edit, Save, X, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Plus, Edit, Save, X, AlertTriangle, RefreshCw, Trash2 } from 'lucide-react';
 
 const CorrespondentBankManagement = () => {
   const [banks, setBanks] = useState([]);
@@ -8,7 +8,9 @@ const CorrespondentBankManagement = () => {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editingBank, setEditingBank] = useState(null);
+  const [deletingBank, setDeletingBank] = useState(null);
   const [formData, setFormData] = useState({
     bankName: '',
     branchAddress: '',
@@ -75,17 +77,30 @@ const CorrespondentBankManagement = () => {
     setSuccess('');
 
     try {
+      // Prepare the data properly - don't send null for empty optional fields
       const submitData = {
         ...formData,
         currencyId: parseInt(formData.currencyId),
-        maxLimit: formData.maxLimit ? parseFloat(formData.maxLimit) : null,
-        minLimit: formData.minLimit ? parseFloat(formData.minLimit) : null
+        // Only include maxLimit if it has a value, otherwise omit it
+        ...(formData.maxLimit && { maxLimit: parseFloat(formData.maxLimit) }),
+        // Only include minLimit if it has a value, otherwise omit it
+        ...(formData.minLimit && { minLimit: parseFloat(formData.minLimit) })
       };
+
+      // Remove empty string values that could cause issues
+      Object.keys(submitData).forEach(key => {
+        if (submitData[key] === '' || submitData[key] === null) {
+          delete submitData[key];
+        }
+      });
+
+      console.log('Submitting data:', submitData);
 
       let response;
       if (editingBank) {
-        response = await correspondentService.updateBankLimits(editingBank.id, submitData);
-        setSuccess('Bank limits updated successfully');
+        // Use updateBank for full editing instead of updateBankLimits
+        response = await correspondentService.updateBank(editingBank.id, submitData);
+        setSuccess('Bank updated successfully');
       } else {
         response = await correspondentService.createBank(submitData);
         setSuccess('Bank created successfully');
@@ -109,7 +124,18 @@ const CorrespondentBankManagement = () => {
       
     } catch (err) {
       console.error('Error submitting form:', err);
-      setError(err.response?.data?.error || err.message || 'Operation failed');
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        url: err.config?.url
+      });
+      
+      const errorMessage = err.response?.data?.error || 
+                          err.response?.data?.message || 
+                          err.message || 
+                          'Operation failed. Please try again.';
+      setError(errorMessage);
     }
   };
 
@@ -127,6 +153,25 @@ const CorrespondentBankManagement = () => {
     setShowModal(true);
   };
 
+  const handleDelete = (bank) => {
+    setDeletingBank(bank);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    try {
+      setError('');
+      await correspondentService.deleteBank(deletingBank.id);
+      setSuccess('Bank deleted successfully');
+      setShowDeleteModal(false);
+      setDeletingBank(null);
+      loadBanks(true);
+    } catch (err) {
+      console.error('Error deleting bank:', err);
+      setError('Failed to delete bank');
+    }
+  };
+
   const cancelEdit = () => {
     setEditingBank(null);
     setShowModal(false);
@@ -139,6 +184,11 @@ const CorrespondentBankManagement = () => {
       maxLimit: '',
       minLimit: ''
     });
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setDeletingBank(null);
   };
 
   const handleRefresh = () => {
@@ -239,9 +289,10 @@ const CorrespondentBankManagement = () => {
                 <th>Bank Name</th>
                 <th>Currency</th>
                 <th>Account Number</th>
+                <th>SWIFT Code</th>
                 <th>Max Limit</th>
                 <th>Min Limit</th>
-                <th style={{ width: '120px' }}>Actions</th>
+                <th style={{ width: '140px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -269,6 +320,7 @@ const CorrespondentBankManagement = () => {
                         </div>
                       </td>
                       <td>{bank.accountNumber || '-'}</td>
+                      <td>{bank.swiftCode || '-'}</td>
                       <td>{bank.maxLimit ? `${bank.maxLimit}%` : '-'}</td>
                       <td>{bank.minLimit ? `${bank.minLimit}%` : '-'}</td>
                       <td>
@@ -277,8 +329,17 @@ const CorrespondentBankManagement = () => {
                             onClick={() => handleEdit(bank)} 
                             className="btn" 
                             style={{ padding: '0.25rem', background: 'none' }}
+                            title="Edit Bank"
                           >
                             <Edit size={16} />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(bank)} 
+                            className="btn" 
+                            style={{ padding: '0.25rem', background: 'none' }}
+                            title="Delete Bank"
+                          >
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       </td>
@@ -287,7 +348,7 @@ const CorrespondentBankManagement = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', padding: '3rem' }}>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '3rem' }}>
                     <div style={{ color: 'var(--text-secondary)' }}>
                       <AlertTriangle size={48} style={{ margin: '0 auto 1rem', color: 'var(--border-color)' }} />
                       <p style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>No banks found</p>
@@ -301,14 +362,15 @@ const CorrespondentBankManagement = () => {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Create/Edit Modal */}
       {showModal && (
+        
         <div className="modal-overlay">
-            <div className="form-group1">
+           <div className="form-group1">
           <div className="modal" style={{ maxWidth: '800px' }}>
             <div className="modal-header">
               <h2 className="modal-title">
-                {editingBank ? 'Edit Bank Limits' : 'Create New Bank'}
+                {editingBank ? 'Edit Bank' : 'Create New Bank'}
               </h2>
               <button 
                 onClick={cancelEdit}
@@ -326,7 +388,6 @@ const CorrespondentBankManagement = () => {
                     <input
                       type="text"
                       required
-                      disabled={!!editingBank}
                       value={formData.bankName}
                       onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
                       className="form-input"
@@ -337,7 +398,6 @@ const CorrespondentBankManagement = () => {
                     <label className="form-label">Currency *</label>
                     <select
                       required
-                      disabled={!!editingBank}
                       value={formData.currencyId}
                       onChange={(e) => setFormData({ ...formData, currencyId: e.target.value })}
                       className="form-input"
@@ -355,7 +415,6 @@ const CorrespondentBankManagement = () => {
                     <label className="form-label">Account Number</label>
                     <input
                       type="text"
-                      disabled={!!editingBank}
                       value={formData.accountNumber}
                       onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
                       className="form-input"
@@ -366,7 +425,6 @@ const CorrespondentBankManagement = () => {
                     <label className="form-label">SWIFT Code</label>
                     <input
                       type="text"
-                      disabled={!!editingBank}
                       value={formData.swiftCode}
                       onChange={(e) => setFormData({ ...formData, swiftCode: e.target.value })}
                       className="form-input"
@@ -404,7 +462,6 @@ const CorrespondentBankManagement = () => {
                   <div className="form-group" style={{ gridColumn: 'span 2' }}>
                     <label className="form-label">Branch Address</label>
                     <textarea
-                      disabled={!!editingBank}
                       value={formData.branchAddress}
                       onChange={(e) => setFormData({ ...formData, branchAddress: e.target.value })}
                       rows="3"
@@ -426,10 +483,56 @@ const CorrespondentBankManagement = () => {
                     className="btn btn-primary"
                   >
                     <Save size={16} style={{ marginRight: '0.5rem' }} />
-                    {editingBank ? 'Update Limits' : 'Create Bank'}
+                    {editingBank ? 'Update Bank' : 'Create Bank'}
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && deletingBank && (
+        <div className="modal-overlay">
+           <div className="form-group1">
+          <div className="modal" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Confirm Delete</h2>
+              <button 
+                onClick={cancelDelete}
+                className="modal-close"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="modal-body">
+              <div style={{ textAlign: 'center', padding: '1rem' }}>
+                <AlertTriangle size={48} style={{ color: '#e53e3e', marginBottom: '1rem' }} />
+                <h3 style={{ marginBottom: '0.5rem' }}>Delete Bank</h3>
+                <p style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)' }}>
+                  Are you sure you want to delete <strong>{deletingBank.bankName}</strong>? 
+                  This action cannot be undone.
+                </p>
+                
+                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                  <button
+                    onClick={cancelDelete}
+                    className="btn btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDelete}
+                    className="btn btn-danger"
+                  >
+                    <Trash2 size={16} style={{ marginRight: '0.5rem' }} />
+                    Delete Bank
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
