@@ -113,7 +113,7 @@ const PaidUpCapital = () => {
         <div className="text-red-500 mb-4">Error loading Paid-up Capital: {error}</div>
         <button
           onClick={handleRefresh}
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          className="btn btn-primary"
         >
           Retry
         </button>
@@ -124,12 +124,14 @@ const PaidUpCapital = () => {
   return (
     <div>
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+
+      
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h1 className="text-2xl font-bold">Paid-up Capital</h1>
-        <div className="flex gap-2">
+        <div style={{ display: 'flex', gap: '1rem' }}>
           <button
             onClick={() => setShowHistory(true)}
-            className="flex items-center gap-2 bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+            className="btn btn-secondary"
           >
             <History size={16} />
             View History
@@ -137,7 +139,7 @@ const PaidUpCapital = () => {
         
             <button
               onClick={() => setShowModal(true)}
-              className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+              className="btn btn-secondary"
             >
               <Edit size={16} />
               Update Capital
@@ -146,7 +148,7 @@ const PaidUpCapital = () => {
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:opacity-50"
+            className="btn btn-primary"
           >
             <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
             {refreshing ? 'Refreshing...' : 'Refresh'}

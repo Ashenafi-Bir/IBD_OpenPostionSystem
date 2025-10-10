@@ -139,7 +139,7 @@ const Dashboard = () => {
         
         <div className="currency-cards-grid">
           {filteredTotals?.map((currency) => (
-            <div key={currency.currency} className="currency-card">
+            <div key={currency.currency} className="card">
               <div className="currency-header">
                 <h3>{currency.currency}</h3>
                 <span className={`position-badge ${currencyPositions.find(c => c.currency === currency.currency)?.type}`}>
@@ -186,7 +186,7 @@ const Dashboard = () => {
                   </span>
                 </div>
                 
-                <div className="stat-row highlight">
+                <div className="stat-row  card">
                   <span className="stat-label">Net Position:</span>
                   <span className={`stat-value ${
                     currencyPositions.find(c => c.currency === currency.currency)?.type
@@ -221,9 +221,9 @@ const Dashboard = () => {
           Cash on Hand Details {selectedCurrency !== 'ALL' && `- ${selectedCurrency}`}
         </h2>
         
-        <div className="cash-cards-grid">
+        <div className=" card cash-cards-grid">
           {filteredCashOnHand?.map((cash) => (
-            <div key={cash.currency} className="cash-card">
+            <div key={cash.currency} className=" card cash-card">
               <div className="cash-header">
                 <h3>{cash.currency} Cash Flow</h3>
               </div>
@@ -236,7 +236,7 @@ const Dashboard = () => {
                   </span>
                 </div>
                 
-                <div className="stat-row positive">
+                <div className=" stat-row positive">
                   <span className="stat-label">Today's Purchases:</span>
                   <span className="stat-value">
                     +{formatCurrency(cash.todayPurchase, cash.currency)}
@@ -250,7 +250,7 @@ const Dashboard = () => {
                   </span>
                 </div>
                 
-                <div className="stat-row highlight">
+                <div className="card  highlight">
                   <span className="stat-label">Today's Cash on Hand:</span>
                   <span className="stat-value cash-total">
                     {formatCurrency(cash.todayCashOnHand, cash.currency)}
@@ -311,8 +311,8 @@ const Dashboard = () => {
         </h2>
         
         <div className="position-cards">
-          <div className="position-card long">
-            <h4>Long Positions</h4>
+          <div className="card position-card long">
+            <h2>Long Positions</h2>
             {currencyPositions
               .filter(c => c.type === 'long')
               .map(currency => (
@@ -323,8 +323,8 @@ const Dashboard = () => {
               ))}
           </div>
           
-          <div className="position-card short">
-            <h4>Short Positions</h4>
+          <div className=" card position-card short">
+            <h2>Short Positions</h2>
             {currencyPositions
               .filter(c => c.type === 'short')
               .map(currency => (
@@ -335,8 +335,8 @@ const Dashboard = () => {
               ))}
           </div>
           
-          <div className="position-card info">
-            <h4>Capital Information</h4>
+          <div className=" card position-card info">
+            <h2>Capital Information</h2>
             <div className="capital-info">
               <div className="info-item">
                 <span>Paid-up Capital:</span>

@@ -24,7 +24,7 @@ const Sidebar = () => {
 const menuItems = [
     { path: '/dashboard', icon: Home, label: 'Dashboard', roles: ['maker', 'authorizer', 'admin'] },
     { path: '/daily-balances', icon: Database, label: 'Daily Bal.', roles: ['maker', 'authorizer', 'admin'] },
-    { path: '/transactions', icon: CreditCard, label: 'Trans.', roles: ['maker', 'authorizer', 'admin'] },
+    { path: '/transactions', icon: CreditCard, label: 'Transaction', roles: ['maker', 'authorizer', 'admin'] },
     { path: '/exchange-rates', icon: DollarSign, label: 'Exch. Rates', roles: ['maker', 'authorizer', 'admin'] },
     { path: '/balance-reports', icon: BarChart3, label: 'Bal. Reports', roles: ['maker', 'authorizer', 'admin'] },
     { path: '/position-report', icon: Calculator, label: 'Pos. Report', roles: ['maker', 'authorizer', 'admin'] },

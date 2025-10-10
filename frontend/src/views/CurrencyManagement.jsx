@@ -184,13 +184,15 @@ const CurrencyManagement = () => {
   // === Render ===
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+
+
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h1 className="text-2xl font-bold">Currency Management</h1>
-        <div className="flex gap-2">
+        <div style={{ display: 'flex', gap: '1rem' }}>
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="flex items-center gap-2 bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+            className="btn btn-secondary"
           >
             <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
             {refreshing ? 'Refreshing...' : 'Refresh'}

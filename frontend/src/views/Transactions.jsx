@@ -338,11 +338,11 @@ const Transactions = () => {
         <h1>Transactions</h1>
         
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <DatePicker
-            selected={selectedDate}
-            onChange={setSelectedDate}
+      <input
+            type="date"
+            value={selectedDate.toISOString().split('T')[0]}
+            onChange={(e) => setSelectedDate(new Date(e.target.value))}
             className="form-input"
-            dateFormat="yyyy-MM-dd"
           />
           <button 
             onClick={handleRefresh}

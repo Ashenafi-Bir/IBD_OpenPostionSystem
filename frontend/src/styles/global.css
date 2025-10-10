@@ -1,8 +1,8 @@
 :root {
-  --primary-color: #2563eb;
-  --primary-dark: #1d4ed8;
+  --primary-color: #2674b6;
+  --primary-dark: #154164;
   --secondary-color: #64748b;
-  --success-color: #10b981;
+  --success-color: #0d885f;
   --warning-color: #f59e0b;
   --error-color: #ef4444;
   --background-color: #ffffff;
@@ -14,8 +14,8 @@
 }
 
 .dark-theme {
-  --primary-color: #3b82f6;
-  --primary-dark: #2563eb;
+  --primary-color: #2674b6;
+  --primary-dark: #154164;;
   --secondary-color: #94a3b8;
   --success-color: #10b981;
   --warning-color: #f59e0b;

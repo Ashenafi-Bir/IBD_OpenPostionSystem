@@ -75,25 +75,25 @@ const seedData = async () => {
       {
         currency_id: 1, // USD
         rateDate: today,
-        buyingRate: 1.0000,
-        sellingRate: 1.0000,
-        midRate: 1.0000,
+        buyingRate: 100,
+        sellingRate: 100,
+        midRate: 100,
         created_by: 1
       },
       {
         currency_id: 2, // EUR
         rateDate: today,
-        buyingRate: 0.9500,
-        sellingRate: 0.9700,
-        midRate: 0.9600,
+        buyingRate: 100,
+        sellingRate: 110,
+        midRate: 105,
         created_by: 1
       },
       {
         currency_id: 3, // GBP
         rateDate: today,
-        buyingRate: 0.8200,
-        sellingRate: 0.8400,
-        midRate: 0.8300,
+        buyingRate: 100,
+        sellingRate: 120,
+        midRate: 110,
         created_by: 1
       }
     ], { ignoreDuplicates: true });
@@ -101,7 +101,7 @@ const seedData = async () => {
     // Create sample paid-up capital
     const paidUpCapital = await models.PaidUpCapital.bulkCreate([
       {
-        capitalAmount: 2979527.00,
+        capitalAmount: 4200000000.00,
         effectiveDate: today,
         currency: 'ETB',
         notes: 'Initial capital',
