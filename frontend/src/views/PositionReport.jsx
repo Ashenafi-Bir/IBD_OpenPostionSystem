@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { dailyBalanceService, currencyService, paidUpCapitalService, exchangeRateService } from '../services/api';
 import DataTable from '../components/common/DataTable';
 import { formatCurrency, formatNumber } from '../utils/formatters';
@@ -15,6 +15,7 @@ const PositionReport = () => {
   const [exportLoading, setExportLoading] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -35,7 +36,9 @@ const PositionReport = () => {
     const loadPaidUpCapital = async () => {
       try {
         const data = await paidUpCapitalService.get();
-        setPaidUpCapital(data.capitalAmount || 2979527);
+        if (data && data.capitalAmount) {
+          setPaidUpCapital(data.capitalAmount);
+        }
       } catch (err) {
         console.error('Error loading paid-up capital:', err);
       }
@@ -44,25 +47,47 @@ const PositionReport = () => {
     loadPaidUpCapital();
   }, []);
 
-  // Calculate position data
-  const calculatePosition = async () => {
+  // Calculate position data with proper error handling and validation
+  const calculatePosition = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
+      setDataLoaded(false);
 
-      const balanceReports = await dailyBalanceService.getReports(
-        selectedDate.toISOString().split('T')[0]
-      );
-
-      const exchangeRates = await exchangeRateService.getRates(
-        selectedDate.toISOString().split('T')[0]
-      );
-
-      if (!balanceReports || !exchangeRates) {
-        throw new Error('Failed to load required data');
+      // Validate date
+      const dateString = selectedDate.toISOString().split('T')[0];
+      if (!dateString || isNaN(new Date(dateString).getTime())) {
+        throw new Error('Invalid date selected');
       }
 
-      const currencies = await currencyService.getAll();
+      // Fetch all data in parallel
+      const [balanceReports, exchangeRates, currencies] = await Promise.all([
+        dailyBalanceService.getReports(dateString).catch(err => {
+          console.error('Error loading balance reports:', err);
+          throw new Error(`Failed to load balance reports: ${err.message}`);
+        }),
+        exchangeRateService.getRates(dateString).catch(err => {
+          console.error('Error loading exchange rates:', err);
+          throw new Error(`Failed to load exchange rates: ${err.message}`);
+        }),
+        currencyService.getAll().catch(err => {
+          console.error('Error loading currencies:', err);
+          throw new Error(`Failed to load currencies: ${err.message}`);
+        })
+      ]);
+
+      // Validate data structure
+      if (!balanceReports || !Array.isArray(balanceReports.totals)) {
+        throw new Error('Invalid balance reports data structure');
+      }
+
+      if (!exchangeRates || !Array.isArray(exchangeRates)) {
+        throw new Error('Invalid exchange rates data structure');
+      }
+
+      if (!currencies || !Array.isArray(currencies)) {
+        throw new Error('Invalid currencies data structure');
+      }
 
       const positionReport = {
         currencies: [],
@@ -75,10 +100,14 @@ const PositionReport = () => {
         }
       };
 
+      // Process each currency with data validation
       for (const currency of currencies) {
+        if (!currency || !currency.code) continue;
+
         const currencyTotals = balanceReports.totals.find(
-          (t) => t.currency === currency.code
+          (t) => t && t.currency === currency.code
         );
+        
         if (!currencyTotals) continue;
 
         const exchangeRate = exchangeRates.find(
@@ -86,23 +115,30 @@ const PositionReport = () => {
             (rate.currency && rate.currency.code === currency.code) ||
             (rate.currency_id && rate.currency_id === currency.id)
         );
-        if (!exchangeRate) continue;
+        
+        if (!exchangeRate || !exchangeRate.midRate) continue;
 
-        const position =
-          currencyTotals.asset +
-          currencyTotals.memoAsset -
-          (currencyTotals.liability + currencyTotals.memoLiability);
-
-        const midRate = parseFloat(exchangeRate.midRate);
-        const positionLocal = position * midRate;
-        const percentage = (positionLocal / paidUpCapital) * 100;
+        // Calculate position with safe number parsing
+        const asset = Number(currencyTotals.asset) || 0;
+        const memoAsset = Number(currencyTotals.memoAsset) || 0;
+        const liability = Number(currencyTotals.liability) || 0;
+        const memoLiability = Number(currencyTotals.memoLiability) || 0;
+        
+        const position = (asset + memoAsset) - (liability + memoLiability);
+        const midRate = parseFloat(exchangeRate.midRate) || 1;
+        
+        // Avoid NaN and Infinity values
+        const positionLocal = isFinite(position * midRate) ? position * midRate : 0;
+        const percentage = isFinite((positionLocal / paidUpCapital) * 100) 
+          ? (positionLocal / paidUpCapital) * 100 
+          : 0;
 
         positionReport.currencies.push({
           currency: currency.code,
-          asset: currencyTotals.asset,
-          liability: currencyTotals.liability,
-          memoAsset: currencyTotals.memoAsset,
-          memoLiability: currencyTotals.memoLiability,
+          asset,
+          liability,
+          memoAsset,
+          memoLiability,
           position,
           midRate,
           positionLocal,
@@ -111,36 +147,62 @@ const PositionReport = () => {
         });
       }
 
-      // Calculate totals
-      positionReport.overall.totalLong = positionReport.currencies
-        .filter((c) => c.type === 'long')
+      // ORIGINAL NET POSITION CALCULATION LOGIC
+      const positivePositions = positionReport.currencies
+        .filter((c) => c.positionLocal > 0)
         .reduce((sum, c) => sum + c.positionLocal, 0);
 
-      positionReport.overall.totalShort = Math.abs(positionReport.currencies
-        .filter((c) => c.type === 'short')
-        .reduce((sum, c) => sum + c.positionLocal, 0));
+      const negativePositions = positionReport.currencies
+        .filter((c) => c.positionLocal < 0)
+        .reduce((sum, c) => sum + Math.abs(c.positionLocal), 0);
 
-      positionReport.overall.overallOpenPosition =
-        positionReport.overall.totalLong - positionReport.overall.totalShort;
+      // Set total long and short
+      positionReport.overall.totalLong = positivePositions;
+      positionReport.overall.totalShort = negativePositions;
+
+      // Determine net position based on which is larger
+      if (negativePositions > positivePositions) {
+        positionReport.overall.overallOpenPosition = -negativePositions;
+      } else {
+        positionReport.overall.overallOpenPosition = positivePositions;
+      }
 
       positionReport.overall.overallPercentage =
         (positionReport.overall.overallOpenPosition / paidUpCapital) * 100;
 
+      // Only set state if data is valid
       setPositionData(positionReport);
+      setDataLoaded(true);
+      
     } catch (err) {
-      setError(err.message);
       console.error('Error calculating position:', err);
+      setError(err.message || 'An unexpected error occurred');
+      setPositionData(null);
+      setDataLoaded(false);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    calculatePosition();
   }, [selectedDate, paidUpCapital]);
 
+  // Use useEffect with proper cleanup to prevent race conditions
+  useEffect(() => {
+    let isMounted = true;
+    
+    const loadData = async () => {
+      if (isMounted) {
+        await calculatePosition();
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [calculatePosition]);
+
   const handleExport = async (format) => {
-    if (!positionData) return;
+    if (!positionData || !dataLoaded) return;
     
     try {
       setExportLoading(true);
@@ -160,7 +222,7 @@ const PositionReport = () => {
           paidUpCapital: positionData.overall.paidUpCapital
         },
         details: positionData.currencies.map(currency => ({
-          currency:formatCurrencyName(currency.currency),
+          currency: formatCurrencyName(currency.currency),
           asset: currency.asset,
           liability: currency.liability,
           memoAsset: currency.memoAsset,
@@ -272,13 +334,14 @@ const PositionReport = () => {
             value={selectedDate.toISOString().split('T')[0]}
             onChange={(e) => setSelectedDate(new Date(e.target.value))}
             className="form-input"
+            max={new Date().toISOString().split('T')[0]}
           />
 
           <div style={{ position: 'relative' }} ref={dropdownRef}>
             <button 
               className="btn btn-primary"
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              disabled={exportLoading}
+              disabled={exportLoading || !dataLoaded}
               style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
               {exportLoading ? (
@@ -308,7 +371,7 @@ const PositionReport = () => {
                 <button 
                   className="dropdown-item"
                   onClick={() => handleExport('excel')}
-                  disabled={exportLoading}
+                  disabled={exportLoading || !dataLoaded}
                   style={{
                     width: '100%',
                     padding: '0.5rem 1rem',
@@ -318,10 +381,15 @@ const PositionReport = () => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    cursor: 'pointer'
+                    cursor: dataLoaded ? 'pointer' : 'not-allowed',
+                    opacity: dataLoaded ? 1 : 0.6
                   }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                  onMouseEnter={(e) => {
+                    if (dataLoaded) e.target.style.backgroundColor = '#f8f9fa';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (dataLoaded) e.target.style.backgroundColor = 'transparent';
+                  }}
                 >
                   <Table size={16} />
                   Export to Excel
@@ -329,7 +397,7 @@ const PositionReport = () => {
                 <button 
                   className="dropdown-item"
                   onClick={() => handleExport('pdf')}
-                  disabled={exportLoading}
+                  disabled={exportLoading || !dataLoaded}
                   style={{
                     width: '100%',
                     padding: '0.5rem 1rem',
@@ -339,11 +407,16 @@ const PositionReport = () => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    cursor: 'pointer',
+                    cursor: dataLoaded ? 'pointer' : 'not-allowed',
+                    opacity: dataLoaded ? 1 : 0.6,
                     borderTop: '1px solid #dee2e6'
                   }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                  onMouseEnter={(e) => {
+                    if (dataLoaded) e.target.style.backgroundColor = '#f8f9fa';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (dataLoaded) e.target.style.backgroundColor = 'transparent';
+                  }}
                 >
                   <FileText size={16} />
                   Export to PDF
@@ -354,7 +427,7 @@ const PositionReport = () => {
         </div>
       </div>
 
-      {positionData && (
+      {positionData && dataLoaded && (
         <>
           {/* Summary Cards */}
           <div className="stats-grid" style={{ marginBottom: '2rem' }}>
@@ -398,7 +471,11 @@ const PositionReport = () => {
           {/* Detailed Table */}
           <div className="card">
             <h3 style={{ marginBottom: '1rem' }}>Detailed Position by Currency</h3>
-            <DataTable columns={positionColumns} data={positionData.currencies || []} />
+            <DataTable 
+              columns={positionColumns} 
+              data={positionData.currencies || []} 
+              emptyMessage="No currency data available for the selected date"
+            />
           </div>
 
           {/* Notes */}
@@ -410,6 +487,7 @@ const PositionReport = () => {
               <li>Positions &gt; 15% and &le; 0% of capital require management attention</li>
               <li>Local amounts use mid exchange rates</li>
               <li>Paid-up Capital: {formatCurrency(paidUpCapital, 'ETB')}</li>
+              <li>Report Date: {selectedDate.toISOString().split('T')[0]}</li>
             </ul>
           </div>
         </>
