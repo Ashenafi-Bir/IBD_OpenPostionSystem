@@ -75,8 +75,16 @@ const startServer = async () => {
     await models.sequelize.sync({ force: false });
     console.log('Database synchronized successfully');
 
-    // Seed initial data
-    await seedData();
+    
+    // Check if database is empty (example: check Users table)
+    const usersCount = await models.User.count();
+    if (usersCount === 0) {
+      console.log('Database empty. Seeding initial data...');
+      await seedData();
+      console.log('Seeding completed');
+    } else {
+      console.log('Database already contains data. Skipping seeding.');
+    }
 
     // Start server
     app.listen(config.port, () => {

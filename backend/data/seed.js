@@ -1,5 +1,6 @@
 import models from '../models/index.js';
 import { hashPassword } from '../utils/helpers.js';
+import seedCorrespondentBanks from './seedCorrespondentBanks.js';
 
 const seedData = async () => {
   try {
@@ -35,8 +36,8 @@ const seedData = async () => {
       // Memorandum Items
       { code: 'ACTIVE_LC', name: 'Active Letter of Credit (L/C)', category: 'memo_liability', displayOrder: 1 },
       { code: 'INACTIVE_LC', name: 'Inactive Letter of Credit (L/C)', category: 'memo_liability', displayOrder: 2 },
-      { code: 'IBC_100', name: 'IBC (100% Collected)', category: 'memo_asset', displayOrder: 3 },
-      { code: 'EPSE', name: 'EPSE', category: 'memo_asset', displayOrder: 4 },
+      { code: 'IBC_100', name: 'IBC (100% Collected)', category: 'memo_liability', displayOrder: 3 },
+      { code: 'EPSE', name: 'EPSE', category: 'memo_liability', displayOrder: 4 },
       { code: 'IBC_OUTSTANDING', name: 'IBC Outstanding (with less than 100% deposit)', category: 'memo_liability', displayOrder: 5 },
       { code: 'OUTSTANDING_PO', name: 'Outstanding purchase order (PO)', category: 'memo_liability', displayOrder: 6 },
       { code: 'SUPPLIER_CREDIT_PO', name: 'Supplier Credit PO', category: 'memo_liability', displayOrder: 7 },
@@ -101,7 +102,7 @@ const seedData = async () => {
     // Create sample paid-up capital
     const paidUpCapital = await models.PaidUpCapital.bulkCreate([
       {
-        capitalAmount: 4200000000.00,
+        capitalAmount: 6080000000.00,
         effectiveDate: today,
         currency: 'ETB',
         notes: 'Initial capital',
@@ -109,6 +110,9 @@ const seedData = async () => {
         isActive: true
       }
     ], { ignoreDuplicates: true });
+
+    // Seed correspondent banks
+    await seedCorrespondentBanks();
 
     console.log('Database seeding completed successfully!');
   } catch (error) {
