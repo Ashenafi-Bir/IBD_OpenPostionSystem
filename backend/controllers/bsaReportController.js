@@ -482,6 +482,10 @@ if (onBalanceAssets.length > 0) {
     if (onBalanceLiabilities.length > 0) {
       worksheet.getCell(`A${currentRow}`).value = '2.1';
       worksheet.getCell(`B${currentRow}`).value = 'On-balance Sheet Items';
+
+        // ✅ Make both cells bold
+  worksheet.getCell(`A${currentRow}`).font = { bold: true };
+  worksheet.getCell(`B${currentRow}`).font = { bold: true };
       // Apply thin borders for sub-headers as requested
       for (let col = 1; col <= overallExposureColNum; col++) {
         const cell = worksheet.getRow(currentRow).getCell(col);
@@ -524,6 +528,11 @@ if (onBalanceAssets.length > 0) {
     if (offBalanceLiabilities.length > 0) {
       worksheet.getCell(`A${currentRow}`).value = '2.2';
       worksheet.getCell(`B${currentRow}`).value = 'Off-balance Sheet Items';
+
+    // ✅ Make both cells bold
+  worksheet.getCell(`A${currentRow}`).font = { bold: true };
+  worksheet.getCell(`B${currentRow}`).font = { bold: true };
+
       // Apply thin borders for sub-headers as requested
       for (let col = 1; col <= overallExposureColNum; col++) {
         const cell = worksheet.getRow(currentRow).getCell(col);
