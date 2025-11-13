@@ -230,7 +230,7 @@ for (let row = startRow; row <= endRow; row++) {
       cell.fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FFD9E1F2' } // Light blue background
+        fgColor: { argb: 'FFFFFFFF' } // Light blue background
       };
       cell.font = { bold: true };
       cell.border = {
@@ -298,22 +298,27 @@ for (let row = startRow; row <= endRow; row++) {
     const onBalanceAssets = assetItems.filter(item => item.balanceType === 'on_balance_sheet');
     const offBalanceAssets = assetItems.filter(item => item.balanceType === 'off_balance_sheet');
 
-    // On-balance Sheet Items - only if they exist
-    if (onBalanceAssets.length > 0) {
-      worksheet.getCell(`A${currentRow}`).value = '1.1';
-      worksheet.getCell(`B${currentRow}`).value = 'On-balance Sheet Items';
-      // Apply thin borders for sub-headers as requested
-      for (let col = 1; col <= overallExposureColNum; col++) {
-        const cell = worksheet.getRow(currentRow).getCell(col);
-        cell.border = {
-          top: { style: 'thin' },
-          left: { style: 'thin' },
-          bottom: { style: 'thin' },
-          right: { style: 'thin' }
-        };
-      }
-      currentRow++;
+  // On-balance Sheet Items - only if they exist
+if (onBalanceAssets.length > 0) {
+  worksheet.getCell(`A${currentRow}`).value = '1.1';
+  worksheet.getCell(`B${currentRow}`).value = 'On-balance Sheet Items';
 
+  // ✅ Make both cells bold
+  worksheet.getCell(`A${currentRow}`).font = { bold: true };
+  worksheet.getCell(`B${currentRow}`).font = { bold: true };
+
+  // Apply thin borders for sub-headers as requested
+  for (let col = 1; col <= overallExposureColNum; col++) {
+    const cell = worksheet.getRow(currentRow).getCell(col);
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' }
+    };
+  }
+
+  currentRow++;
       // Add each on-balance asset item
       onBalanceAssets.forEach((item, index) => {
         worksheet.getCell(`A${currentRow}`).value = `1.1.${index + 1}`;
@@ -345,6 +350,9 @@ for (let row = startRow; row <= endRow; row++) {
       worksheet.getCell(`A${currentRow}`).value = '1.2';
       worksheet.getCell(`B${currentRow}`).value = 'Off-balance sheet Items';
       // Apply thin borders for sub-headers as requested
+      // ✅ Make both cells bold
+  worksheet.getCell(`A${currentRow}`).font = { bold: true };
+  worksheet.getCell(`B${currentRow}`).font = { bold: true };
       for (let col = 1; col <= overallExposureColNum; col++) {
         const cell = worksheet.getRow(currentRow).getCell(col);
         cell.border = {
@@ -843,7 +851,7 @@ for (let row = startRow; row <= endRow; row++) {
       cell.border = {
         top: { style: 'thin' },
         left: { style: 'thin' },
-        bottom: col === 1 || col === overallExposureColNum ? undefined : { style: 'thin' }, // No bottom border on left and right
+        bottom: col === 1 || col === 2 ?  { style: 'thin' } : undefined, // No bottom border on left and right
         right: { style: 'thin' }
       };
     }
@@ -851,7 +859,7 @@ for (let row = startRow; row <= endRow; row++) {
     currentRow++;
 
     // Remove borders and set background for Overall Exposure column above 8.1
-    for (let row = headerRow1; row < currentRow+1; row++) {
+    for (let row = headerRow1+2; row < currentRow+1; row++) {
       const cell = worksheet.getRow(row).getCell(overallExposureColNum);
       if (row < currentRow) { // All rows above the current 8.1 row
         cell.border = {
@@ -1077,20 +1085,24 @@ for (let row = startRow; row <= endRow; row++) {
   }
 
   // Add Description of Country Currency Code section starting from column B
-  const currencyDescriptionStartRow = currentRow;
-  worksheet.getCell(`B${currentRow}`).value = 'B) Description of Country Currency Code';
-  worksheet.getCell(`B${currentRow}`).font = { bold: true, size: 12 };
-  
+ const currencyDescriptionStartRow = currentRow;
+
+// Merge columns B and C for the title
+worksheet.mergeCells(`B${currentRow}:C${currentRow}`);
+worksheet.getCell(`B${currentRow}`).value = 'B) Description of Country Currency Code';
+worksheet.getCell(`B${currentRow}`).font = { bold: true, size: 12 };
+worksheet.getCell(`B${currentRow}`).alignment = { vertical: 'middle', horizontal: 'center' };
+
   // Apply thin borders to the two rows below main table as requested
   for (let row = currencyDescriptionStartRow; row <= currencyDescriptionStartRow + 1; row++) {
     const worksheetRow = worksheet.getRow(row);
     for (let col = 2; col <= 3; col++) {
       const cell = worksheetRow.getCell(col);
       cell.border = {
-        top: { style: 'thin' },
-        left: { style: 'thin' },
-        bottom: { style: 'thin' },
-        right: { style: 'thin' }
+        top: { style: undefined },
+        left: { style: undefined },
+        bottom: { style: undefined },
+        right: { style: undefined }
       };
     }
   }
