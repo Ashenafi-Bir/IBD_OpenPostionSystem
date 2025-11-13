@@ -4,6 +4,7 @@ import models from '../models/index.js';
 import config from '../config/config.js';
 import { body } from 'express-validator';
 import { handleValidationErrors } from '../middleware/validation.js';
+import ldapService from '../services/ldapService.js';
 
 export const login = [
   body('username').notEmpty().withMessage('Username is required'),
@@ -14,6 +15,7 @@ export const login = [
     try {
       const { username, password } = req.body;
 
+      // First, try to find user in local database
       const user = await models.User.findOne({ 
         where: { username, isActive: true } 
       });
@@ -22,7 +24,18 @@ export const login = [
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
-      const isValidPassword = await bcrypt.compare(password, user.password);
+      let isValidPassword = false;
+
+      // Check authentication based on authType
+      if (user.authType === 'ldap') {
+        // Validate against LDAP
+        const ldapResult = await ldapService.validateCredentials(user.ldapUsername || username, password);
+        isValidPassword = ldapResult.isValid;
+      } else {
+        // Validate against local database
+        isValidPassword = await bcrypt.compare(password, user.password);
+      }
+
       if (!isValidPassword) {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
@@ -43,10 +56,12 @@ export const login = [
           username: user.username,
           email: user.email,
           role: user.role,
-          fullName: user.fullName
+          fullName: user.fullName,
+          authType: user.authType
         }
       });
     } catch (error) {
+      console.error('Login error:', error);
       res.status(500).json({ error: 'Login failed' });
     }
   }
@@ -61,7 +76,8 @@ export const getProfile = async (req, res) => {
         email: req.user.email,
         role: req.user.role,
         fullName: req.user.fullName,
-        lastLogin: req.user.lastLogin
+        lastLogin: req.user.lastLogin,
+        authType: req.user.authType
       }
     });
   } catch (error) {

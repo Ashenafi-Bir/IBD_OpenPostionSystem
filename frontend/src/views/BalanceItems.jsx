@@ -20,6 +20,7 @@ const BalanceItems = () => {
     code: '',
     name: '',
     category: 'asset',
+    balanceType: 'on_balance_sheet',
     description: '',
     displayOrder: 0
   });
@@ -33,6 +34,7 @@ const BalanceItems = () => {
     if (!formValues.code.trim()) errors.code = 'Code is required';
     if (!formValues.name.trim()) errors.name = 'Name is required';
     if (!formValues.category) errors.category = 'Category is required';
+    if (!formValues.balanceType) errors.balanceType = 'Balance type is required';
     
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -65,6 +67,7 @@ const BalanceItems = () => {
       code: '',
       name: '',
       category: 'asset',
+      balanceType: 'on_balance_sheet',
       description: '',
       displayOrder: 0
     });
@@ -131,6 +134,7 @@ const BalanceItems = () => {
       code: item.code || '',
       name: item.name || '',
       category: item.category || 'asset',
+      balanceType: item.balanceType || 'on_balance_sheet',
       description: item.description || '',
       displayOrder: item.displayOrder || 0
     });
@@ -166,6 +170,16 @@ const BalanceItems = () => {
     memo_liability: 'Memo Liability'
   };
 
+  const balanceTypeColors = {
+    on_balance_sheet: 'var(--success-color)',
+    off_balance_sheet: 'var(--info-color)'
+  };
+
+  const balanceTypeLabels = {
+    on_balance_sheet: 'On-Balance Sheet',
+    off_balance_sheet: 'Off-Balance Sheet'
+  };
+
   const itemColumns = [
     { key: 'code', title: 'Code' },
     { key: 'name', title: 'Name' },
@@ -180,6 +194,21 @@ const BalanceItems = () => {
           }}
         >
           {categoryLabels[value]}
+        </span>
+      )
+    },
+    {
+      key: 'balanceType',
+      title: 'Balance Type',
+      render: (value) => (
+        <span
+          style={{
+            color: balanceTypeColors[value],
+            fontWeight: '600',
+            fontSize: '0.875rem'
+          }}
+        >
+          {balanceTypeLabels[value]}
         </span>
       )
     },
@@ -338,7 +367,7 @@ const BalanceItems = () => {
               )}
             </div>
 
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
+            <div className="form-group">
               <label className="form-label">Category</label>
               <select
                 name="category"
@@ -354,6 +383,23 @@ const BalanceItems = () => {
               </select>
               {touched.category && formErrors.category && (
                 <div className="form-error">{formErrors.category}</div>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Balance Type</label>
+              <select
+                name="balanceType"
+                value={formValues.balanceType}
+                onChange={(e) => handleChange('balanceType', e.target.value)}
+                onBlur={() => handleBlur('balanceType')}
+                className="form-input"
+              >
+                <option value="on_balance_sheet">On-Balance Sheet</option>
+                <option value="off_balance_sheet">Off-Balance Sheet</option>
+              </select>
+              {touched.balanceType && formErrors.balanceType && (
+                <div className="form-error">{formErrors.balanceType}</div>
               )}
             </div>
 

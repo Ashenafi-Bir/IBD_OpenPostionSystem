@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { dailyBalanceService, currencyService, paidUpCapitalService, exchangeRateService } from '../services/api';
+import { dailyBalanceService, currencyService, paidUpCapitalService, exchangeRateService, bsaReportService } from '../services/api';
 import DataTable from '../components/common/DataTable';
 import { formatCurrency, formatNumber } from '../utils/formatters';
 import { Download, Calculator, FileText, Table, ChevronDown } from 'lucide-react';
@@ -16,6 +16,7 @@ const PositionReport = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const [dataLoaded, setDataLoaded] = useState(false);
+    const [bsaLoading, setBsaLoading] = useState(false);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -201,6 +202,21 @@ const PositionReport = () => {
     };
   }, [calculatePosition]);
 
+
+  // Add BSA Report handler
+  const handleBSAReport = async () => {
+    try {
+      setBsaLoading(true);
+      const dateString = selectedDate.toISOString().split('T')[0];
+      await bsaReportService.generate(dateString);
+    } catch (error) {
+      console.error('Error generating BSA report:', error);
+      alert('Failed to generate BSA report: ' + error.message);
+    } finally {
+      setBsaLoading(false);
+    }
+  };
+
   const handleExport = async (format) => {
     if (!positionData || !dataLoaded) return;
     
@@ -239,6 +255,9 @@ const PositionReport = () => {
         await exportToExcel(exportData);
       } else if (format === 'pdf') {
         await exportToPDF(exportData);
+      }else if (format === 'bsa') {
+        await handleBSAReport();
+      return;
       }
     } catch (err) {
       console.error('Export error:', err);
@@ -354,75 +373,88 @@ const PositionReport = () => {
                 </>
               )}
             </button>
-            
-            {dropdownOpen && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                right: 0,
-                marginTop: '0.25rem',
-                backgroundColor: 'white',
-                border: '1px solid #dee2e6',
-                borderRadius: '0.375rem',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                zIndex: 1000,
-                minWidth: '160px'
-              }}>
-                <button 
-                  className="dropdown-item"
-                  onClick={() => handleExport('excel')}
-                  disabled={exportLoading || !dataLoaded}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem 1rem',
-                    border: 'none',
-                    backgroundColor: 'transparent',
-                    textAlign: 'left',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    cursor: dataLoaded ? 'pointer' : 'not-allowed',
-                    opacity: dataLoaded ? 1 : 0.6
-                  }}
-                  onMouseEnter={(e) => {
-                    if (dataLoaded) e.target.style.backgroundColor = '#f8f9fa';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (dataLoaded) e.target.style.backgroundColor = 'transparent';
-                  }}
-                >
-                  <Table size={16} />
-                  Export to Excel
-                </button>
-                <button 
-                  className="dropdown-item"
-                  onClick={() => handleExport('pdf')}
-                  disabled={exportLoading || !dataLoaded}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem 1rem',
-                    border: 'none',
-                    backgroundColor: 'transparent',
-                    textAlign: 'left',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    cursor: dataLoaded ? 'pointer' : 'not-allowed',
-                    opacity: dataLoaded ? 1 : 0.6,
-                    borderTop: '1px solid #dee2e6'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (dataLoaded) e.target.style.backgroundColor = '#f8f9fa';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (dataLoaded) e.target.style.backgroundColor = 'transparent';
-                  }}
-                >
-                  <FileText size={16} />
-                  Export to PDF
-                </button>
-              </div>
-            )}
+         
+  {dropdownOpen && (
+    <div style={{
+      position: 'absolute',
+      top: '100%',
+      right: 0,
+      marginTop: '0.25rem',
+      backgroundColor: 'white',
+      border: '1px solid #dee2e6',
+      borderRadius: '0.375rem',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+      zIndex: 1000,
+      minWidth: '160px'
+    }}>
+      <button 
+        className="dropdown-item"
+        onClick={() => handleExport('excel')}
+        disabled={exportLoading || !dataLoaded}
+        style={{
+          width: '100%',
+          padding: '0.5rem 1rem',
+          border: 'none',
+          backgroundColor: 'transparent',
+          textAlign: 'left',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          cursor: dataLoaded ? 'pointer' : 'not-allowed',
+          opacity: dataLoaded ? 1 : 0.6
+        }}
+      >
+        <Table size={16} />
+        Export to Excel
+      </button>
+      <button 
+        className="dropdown-item"
+        onClick={() => handleExport('pdf')}
+        disabled={exportLoading || !dataLoaded}
+        style={{
+          width: '100%',
+          padding: '0.5rem 1rem',
+          border: 'none',
+          backgroundColor: 'transparent',
+          textAlign: 'left',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          cursor: dataLoaded ? 'pointer' : 'not-allowed',
+          opacity: dataLoaded ? 1 : 0.6,
+          borderTop: '1px solid #dee2e6'
+        }}
+      >
+        <FileText size={16} />
+        Export to PDF
+      </button>
+      <button 
+        className="dropdown-item"
+        onClick={() => handleExport('bsa')}
+        disabled={bsaLoading || !dataLoaded}
+        style={{
+          width: '100%',
+          padding: '0.5rem 1rem',
+          border: 'none',
+          backgroundColor: 'transparent',
+          textAlign: 'left',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          cursor: dataLoaded ? 'pointer' : 'not-allowed',
+          opacity: dataLoaded ? 1 : 0.6,
+          borderTop: '1px solid #dee2e6'
+        }}
+      >
+        {bsaLoading ? (
+          <LoadingSpinner size="small" />
+        ) : (
+          <FileText size={16} />
+        )}
+        BSA Report
+      </button>
+    </div>
+  )}
           </div>
         </div>
       </div>

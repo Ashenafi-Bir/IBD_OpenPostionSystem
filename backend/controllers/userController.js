@@ -1,11 +1,12 @@
 import bcrypt from 'bcryptjs';
 import models from '../models/index.js';
 import { body, validationResult } from 'express-validator';
+import ldapService from '../services/ldapService.js';
 
 export const getUsers = async (req, res) => {
   try {
     const users = await models.User.findAll({
-      attributes: { exclude: ['password'] }, // Don't return passwords
+      attributes: { exclude: ['password'] },
       order: [['createdAt', 'DESC']]
     });
 
@@ -58,9 +59,6 @@ export const createUser = [
         throw new Error('Email already exists');
       }
     }),
-  body('password')
-    .isLength({ min: 6 })
-    .withMessage('Password must be at least 6 characters'),
   body('fullName')
     .notEmpty()
     .withMessage('Full name is required'),
@@ -77,9 +75,14 @@ export const createUser = [
         });
       }
 
-      const { username, email, password, fullName, role, isActive = true } = req.body;
+      const { username, email, password, fullName, role, isActive = true, authType = 'local', ldapUsername } = req.body;
 
-      const hashedPassword = await bcrypt.hash(password, 12);
+      let hashedPassword = null;
+      if (authType === 'local' && password) {
+        hashedPassword = await bcrypt.hash(password, 12);
+      } else if (authType === 'local' && !password) {
+        return res.status(400).json({ error: 'Password is required for local users' });
+      }
 
       const user = await models.User.create({
         username,
@@ -87,7 +90,9 @@ export const createUser = [
         password: hashedPassword,
         fullName,
         role,
-        isActive
+        isActive,
+        authType,
+        ldapUsername: authType === 'ldap' ? ldapUsername : null
       });
 
       // Don't return password
@@ -141,7 +146,7 @@ export const updateUser = [
         });
       }
 
-      const { username, email, fullName, role, isActive, password } = req.body;
+      const { username, email, fullName, role, isActive, password, authType, ldapUsername } = req.body;
 
       const user = await models.User.findByPk(req.params.id);
       if (!user) {
@@ -158,16 +163,23 @@ export const updateUser = [
         }
       }
 
+      // Prevent changing role for LDAP users
+      if (user.authType === 'ldap' && role !== user.role) {
+        return res.status(400).json({ error: 'Cannot change role for LDAP users' });
+      }
+
       const updateData = {
         username,
         email,
         fullName,
         role,
-        isActive
+        isActive,
+        authType: user.authType, // Don't allow changing auth type
+        ldapUsername: user.ldapUsername // Don't allow changing ldap username
       };
 
-      // Only update password if provided
-      if (password) {
+      // Only update password if provided and user is local
+      if (password && user.authType === 'local') {
         updateData.password = await bcrypt.hash(password, 12);
       }
 
@@ -211,5 +223,40 @@ export const deleteUser = async (req, res) => {
   } catch (error) {
     console.error('Error deleting user:', error);
     res.status(500).json({ error: 'Failed to delete user' });
+  }
+};
+
+// New LDAP endpoints
+export const searchLdapUsers = async (req, res) => {
+  try {
+    const { searchTerm } = req.query;
+    
+    if (!searchTerm || searchTerm.length < 3) {
+      return res.status(400).json({ error: 'Search term must be at least 3 characters' });
+    }
+
+    const users = await ldapService.searchUsers(searchTerm);
+    res.json({
+      success: true,
+      data: users
+    });
+  } catch (error) {
+    console.error('Error searching LDAP users:', error);
+    res.status(500).json({ error: 'Failed to search LDAP users' });
+  }
+};
+
+export const getLdapUser = async (req, res) => {
+  try {
+    const { username } = req.params;
+    
+    const user = await ldapService.getUserByUsername(username);
+    res.json({
+      success: true,
+      data: user
+    });
+  } catch (error) {
+    console.error('Error getting LDAP user:', error);
+    res.status(500).json({ error: 'Failed to get LDAP user' });
   }
 };

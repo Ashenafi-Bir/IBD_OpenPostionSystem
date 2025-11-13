@@ -94,7 +94,6 @@ export const authService = {
   getProfile: () => api.get('/auth/profile').then(res => res.data.user),
 };
 
-
 // User services
 export const userService = {
   getUsers: () => api.get('/users'),
@@ -102,6 +101,10 @@ export const userService = {
   createUser: (userData) => api.post('/users', userData),
   updateUser: (id, userData) => api.put(`/users/${id}`, userData),
   deleteUser: (id) => api.delete(`/users/${id}`),
+  
+  // LDAP services
+  searchLdapUsers: (searchTerm) => api.get(`/users/ldap/search?searchTerm=${encodeURIComponent(searchTerm)}`),
+  getLdapUser: (username) => api.get(`/users/ldap/user/${encodeURIComponent(username)}`),
 };
 // Currency services
 export const currencyService = {
@@ -259,6 +262,24 @@ export const paidUpCapitalService = {
   
   update: (data) => 
     api.put('/paid-up-capital', data).then(res => res.data),
+};
+
+// BSA Report services
+export const bsaReportService = {
+  generate: (date) => 
+    api.get(`/reports/bsa?date=${date}`, { 
+      responseType: 'blob' 
+    }).then(res => {
+      // Create blob and download
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `BSA_Report_${date}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    }),
 };
 
 export default api;

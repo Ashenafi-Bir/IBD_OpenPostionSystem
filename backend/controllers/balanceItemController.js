@@ -19,6 +19,7 @@ export const createBalanceItem = [
   body('code').notEmpty().withMessage('Code is required'),
   body('name').notEmpty().withMessage('Name is required'),
   body('category').isIn(['asset', 'liability', 'memo_asset', 'memo_liability']).withMessage('Invalid category'),
+  body('balanceType').isIn(['on_balance_sheet', 'off_balance_sheet']).withMessage('Invalid balance type'),
   handleValidationErrors,
 
   async (req, res) => {
@@ -47,6 +48,7 @@ export const createBalanceItem = [
 export const updateBalanceItem = [
   param('id').isInt().withMessage('Invalid item ID'),
   body('category').optional().isIn(['asset', 'liability', 'memo_asset', 'memo_liability']).withMessage('Invalid category'),
+  body('balanceType').optional().isIn(['on_balance_sheet', 'off_balance_sheet']).withMessage('Invalid balance type'),
   handleValidationErrors,
 
   async (req, res) => {

@@ -18,6 +18,12 @@ export default (sequelize, DataTypes) => {
       type: DataTypes.ENUM('asset', 'liability', 'memo_asset', 'memo_liability'),
       allowNull: false
     },
+    balanceType: {
+      type: DataTypes.ENUM('on_balance_sheet', 'off_balance_sheet'),
+      allowNull: false,
+      defaultValue: 'on_balance_sheet',
+      field: 'balance_type'
+    },
     description: {
       type: DataTypes.TEXT
     },

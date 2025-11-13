@@ -1,0 +1,74 @@
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.radio-label:hover {
+  border-color: var(--primary-color);
+}
+
+.radio-label input[type="radio"] {
+  margin: 0;
+}
+
+.ldap-search-results {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 0.5rem;
+}
+
+.ldap-user-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.2s;
+}
+
+.ldap-user-item:hover {
+  background-color: #f8f9fa;
+}
+
+.ldap-user-item:last-child {
+  border-bottom: none;
+}
+
+.ldap-username {
+  font-weight: 600;
+  color: #333;
+}
+
+.ldap-displayname {
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.selected-ldap-user {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border: 1px solid #e9ecef;
+}
+
+.selected-user-header {
+  font-size: 0.875rem;
+  color: #666;
+  margin-bottom: 0.25rem;
+}
+
+.selected-user-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}

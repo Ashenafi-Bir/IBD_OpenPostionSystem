@@ -17,7 +17,7 @@ export default (sequelize, DataTypes) => {
     },
     password: {
       type: DataTypes.STRING(255),
-      allowNull: false
+      allowNull: true // Allow null for LDAP users
     },
     role: {
       type: DataTypes.ENUM('maker', 'authorizer', 'admin'),
@@ -34,6 +34,17 @@ export default (sequelize, DataTypes) => {
     },
     lastLogin: {
       type: DataTypes.DATE
+    },
+    authType: {
+      type: DataTypes.ENUM('ldap', 'local'),
+      allowNull: false,
+      defaultValue: 'local',
+       field: 'authType'
+    },
+    ldapUsername: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+       field: 'ldapUsername'
     }
   }, {
     tableName: 'users',

@@ -4,7 +4,9 @@ import {
   getUser,
   createUser,
   updateUser,
-  deleteUser
+  deleteUser,
+  searchLdapUsers,
+  getLdapUser
 } from '../controllers/userController.js';
 import { authenticateToken, authorize } from '../middleware/auth.js';
 
@@ -13,7 +15,11 @@ const router = express.Router();
 // All routes require authentication
 router.use(authenticateToken);
 
-// Only admins can access user management
+// LDAP routes (accessible to admins)
+router.get('/ldap/search', authorize(['admin']), searchLdapUsers);
+router.get('/ldap/user/:username', authorize(['admin']), getLdapUser);
+
+// User management routes (only admins)
 router.get('/', authorize(['admin']), getUsers);
 router.get('/:id', authorize(['admin']), getUser);
 router.post('/', authorize(['admin']), createUser);

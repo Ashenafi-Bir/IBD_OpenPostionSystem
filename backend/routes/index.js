@@ -8,6 +8,7 @@ import paidUpCapitalRoutes from './paidUpCapital.js';
 import dailyBalanceRoutes from './dailyBalances.js';
 import currencyRoutes from './currencies.js';
 import userRoutes from './users.js';
+import reportsRouter from './reports.js';
 
 const router = express.Router();
 
@@ -20,5 +21,6 @@ router.use('/balance-items', balanceItemRoutes);
 router.use('/paid-up-capital', paidUpCapitalRoutes);
 router.use('/daily-balances', dailyBalanceRoutes);
 router.use('/currencies', currencyRoutes);
+router.use('/reports', reportsRouter);
 
 export default router;
