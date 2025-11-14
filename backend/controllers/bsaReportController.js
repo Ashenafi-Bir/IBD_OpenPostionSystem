@@ -70,7 +70,10 @@ export const generateBSAReport = [
         balanceItems,
         exchangeRates,
         dailyBalances,
-        paidUpCapital: paidUpCapital ? parseFloat(paidUpCapital.capitalAmount) : 2979527
+       paidUpCapital: paidUpCapital 
+  ? parseFloat(paidUpCapital.capitalAmount) / 1000 
+  : 2979527 / 1000
+
       });
 
       // Set response headers
