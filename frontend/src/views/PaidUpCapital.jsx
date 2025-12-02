@@ -5,7 +5,7 @@ import Modal from '../components/common/Modal';
 import { useForm } from '../hooks/useForm';
 import { required, number, composeValidators } from '../utils/validators';
 import { formatCurrency, formatDate } from '../utils/formatters';
-import { Edit, History, DollarSign, RefreshCw } from 'lucide-react';
+import { Edit, History, DollarSign, RefreshCw, Calendar } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const PaidUpCapital = () => {
@@ -20,6 +20,8 @@ const PaidUpCapital = () => {
 
   const [showModal, setShowModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [testDate, setTestDate] = useState(new Date().toISOString().split('T')[0]);
+  const [testDateCapital, setTestDateCapital] = useState(null);
 
   const { values, errors, touched, handleChange, handleBlur, validate, reset } = useForm(
     {
@@ -52,7 +54,7 @@ const PaidUpCapital = () => {
       // Reset form with latest values
       reset({
         capitalAmount: capitalRes?.capitalAmount || '',
-        effectiveDate: capitalRes?.effectiveDate || new Date().toISOString().split('T')[0],
+        effectiveDate: new Date().toISOString().split('T')[0],
         currency: capitalRes?.currency || 'ETB',
         notes: ''
       });
@@ -91,12 +93,23 @@ const PaidUpCapital = () => {
     }
   };
 
+  const handleTestDateChange = async (date) => {
+    setTestDate(date);
+    try {
+      const capitalForDate = await paidUpCapitalService.getForDate(date);
+      setTestDateCapital(capitalForDate);
+    } catch (error) {
+      console.error('Error fetching capital for date:', error);
+    }
+  };
+
   const historyColumns = [
     { key: 'effectiveDate', title: 'Effective Date', render: (value) => formatDate(value) },
     { key: 'capitalAmount', title: 'Amount', render: (value, row) => formatCurrency(value, row.currency) },
     { key: 'currency', title: 'Currency' },
     { key: 'Creator.fullName', title: 'Updated By', render: (value, row) => row.Creator?.fullName },
-    { key: 'notes', title: 'Notes' }
+    { key: 'notes', title: 'Notes' },
+    { key: 'isActive', title: 'Status', render: (value) => value ? 'Active' : 'Inactive' }
   ];
 
   if (loading && !refreshing) {
@@ -124,8 +137,6 @@ const PaidUpCapital = () => {
   return (
     <div>
       {/* Header */}
-
-      
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h1 className="text-2xl font-bold">Paid-up Capital</h1>
         <div style={{ display: 'flex', gap: '1rem' }}>
@@ -137,13 +148,13 @@ const PaidUpCapital = () => {
             View History
           </button>
         
-            <button
-              onClick={() => setShowModal(true)}
-              className="btn btn-secondary"
-            >
-              <Edit size={16} />
-              Update Capital
-            </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="btn btn-secondary"
+          >
+            <Edit size={16} />
+            Update Capital
+          </button>
     
           <button
             onClick={handleRefresh}
@@ -170,6 +181,43 @@ const PaidUpCapital = () => {
             <p className="text-gray-400 text-sm">
               Effective from {formatDate(capital.effectiveDate)}
             </p>
+          )}
+        </div>
+      </div>
+
+      {/* Test Capital for Specific Date */}
+      <div className="card max-w-md mx-auto mb-8">
+        <div className="text-center">
+          <div className="bg-green-500 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white">
+            <Calendar size={24} />
+          </div>
+          <h3 className="text-lg font-semibold mb-4">Test Capital for Specific Date</h3>
+          
+          <div className="form-group mb-4">
+            <label className="form-label">Select Date</label>
+            <input
+              type="date"
+              value={testDate}
+              onChange={(e) => handleTestDateChange(e.target.value)}
+              className="form-input"
+              max={new Date().toISOString().split('T')[0]}
+            />
+          </div>
+
+          {testDateCapital && (
+            <div>
+              <h4 className="text-md font-medium mb-2">
+                {formatCurrency(testDateCapital.capitalAmount || 0, testDateCapital.currency || 'ETB')}
+              </h4>
+              <p className="text-gray-500 text-sm">
+                Capital effective for {formatDate(testDate)}
+              </p>
+              {testDateCapital.effectiveDate && (
+                <p className="text-gray-400 text-xs">
+                  Originally set on {formatDate(testDateCapital.effectiveDate)}
+                </p>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -216,7 +264,11 @@ const PaidUpCapital = () => {
               onChange={(e) => handleChange('effectiveDate', e.target.value)}
               onBlur={() => handleBlur('effectiveDate')}
               className="form-input"
+              max={new Date().toISOString().split('T')[0]}
             />
+            <div className="text-xs text-gray-500 mt-1">
+              You can set backdated capital entries. The system will use the appropriate capital for each date.
+            </div>
             {touched.effectiveDate && errors.effectiveDate && (
               <div className="form-error">{errors.effectiveDate}</div>
             )}

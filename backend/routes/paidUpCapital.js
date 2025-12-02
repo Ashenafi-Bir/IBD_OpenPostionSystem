@@ -3,7 +3,8 @@ import {
   getPaidUpCapital, 
   getPaidUpCapitalHistory, 
   updatePaidUpCapital ,
-   getPaidUpCapitalForDate
+   getPaidUpCapitalForDate,
+   getCapitalTimeline
 } from '../controllers/paidUpCapitalController.js';
 import { authenticateToken, requireRole, logActivity } from '../middleware/auth.js';
 
@@ -32,5 +33,10 @@ router.put('/',
   logActivity('update_paid_up_capital', 'paid_up_capital'),
   updatePaidUpCapital
 );
-
+router.get('/paid-up-capital/timeline', 
+   authenticateToken, 
+  logActivity('get_paid_up_capital_date', 'paid_up_capital'),
+  authenticateToken, 
+  getCapitalTimeline
+);
 export default router;

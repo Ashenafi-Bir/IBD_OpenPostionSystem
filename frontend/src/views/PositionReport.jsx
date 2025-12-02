@@ -16,7 +16,7 @@ const PositionReport = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const [dataLoaded, setDataLoaded] = useState(false);
-    const [bsaLoading, setBsaLoading] = useState(false);
+  const [bsaLoading, setBsaLoading] = useState(false);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -32,20 +32,21 @@ const PositionReport = () => {
     };
   }, []);
 
-  // Load paid-up capital
-  useEffect(() => {
-    const loadPaidUpCapital = async () => {
-      try {
-        const data = await paidUpCapitalService.get();
-        if (data && data.capitalAmount) {
-          setPaidUpCapital(data.capitalAmount);
-        }
-      } catch (err) {
-        console.error('Error loading paid-up capital:', err);
+  // Load paid-up capital for specific date
+  const loadPaidUpCapitalForDate = useCallback(async (date) => {
+    try {
+      const dateString = date.toISOString().split('T')[0];
+      const data = await paidUpCapitalService.getForDate(dateString);
+      if (data && data.capitalAmount) {
+        setPaidUpCapital(data.capitalAmount);
+      } else {
+        // Fallback to default if no capital found for date
+        setPaidUpCapital(2979527);
       }
-    };
-
-    loadPaidUpCapital();
+    } catch (err) {
+      console.error('Error loading paid-up capital for date:', err);
+      setPaidUpCapital(2979527); // Fallback to default
+    }
   }, []);
 
   // Calculate position data with proper error handling and validation
@@ -60,6 +61,9 @@ const PositionReport = () => {
       if (!dateString || isNaN(new Date(dateString).getTime())) {
         throw new Error('Invalid date selected');
       }
+
+      // Load paid-up capital for the selected date first
+      await loadPaidUpCapitalForDate(selectedDate);
 
       // Fetch all data in parallel
       const [balanceReports, exchangeRates, currencies] = await Promise.all([
@@ -97,7 +101,8 @@ const PositionReport = () => {
           totalShort: 0,
           overallOpenPosition: 0,
           overallPercentage: 0,
-          paidUpCapital: paidUpCapital
+          paidUpCapital: paidUpCapital,
+          calculationDate: dateString
         }
       };
 
@@ -171,6 +176,9 @@ const PositionReport = () => {
       positionReport.overall.overallPercentage =
         (positionReport.overall.overallOpenPosition / paidUpCapital) * 100;
 
+      // Update paid-up capital in the report with the actual value used
+      positionReport.overall.paidUpCapital = paidUpCapital;
+
       // Only set state if data is valid
       setPositionData(positionReport);
       setDataLoaded(true);
@@ -183,7 +191,7 @@ const PositionReport = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedDate, paidUpCapital]);
+  }, [selectedDate, paidUpCapital, loadPaidUpCapitalForDate]);
 
   // Use useEffect with proper cleanup to prevent race conditions
   useEffect(() => {
@@ -202,6 +210,11 @@ const PositionReport = () => {
     };
   }, [calculatePosition]);
 
+  // Handle date change - reload data when date changes
+  const handleDateChange = (date) => {
+    setSelectedDate(date);
+    // The useEffect will automatically trigger because selectedDate changes
+  };
 
   // Add BSA Report handler
   const handleBSAReport = async () => {
@@ -235,7 +248,8 @@ const PositionReport = () => {
           totalShort: positionData.overall.totalShort,
           overallOpenPosition: positionData.overall.overallOpenPosition,
           overallPercentage: positionData.overall.overallPercentage,
-          paidUpCapital: positionData.overall.paidUpCapital
+          paidUpCapital: positionData.overall.paidUpCapital,
+          calculationDate: positionData.overall.calculationDate
         },
         details: positionData.currencies.map(currency => ({
           currency: formatCurrencyName(currency.currency),
@@ -255,9 +269,9 @@ const PositionReport = () => {
         await exportToExcel(exportData);
       } else if (format === 'pdf') {
         await exportToPDF(exportData);
-      }else if (format === 'bsa') {
+      } else if (format === 'bsa') {
         await handleBSAReport();
-      return;
+        return;
       }
     } catch (err) {
       console.error('Export error:', err);
@@ -351,7 +365,7 @@ const PositionReport = () => {
           <input
             type="date"
             value={selectedDate.toISOString().split('T')[0]}
-            onChange={(e) => setSelectedDate(new Date(e.target.value))}
+            onChange={(e) => handleDateChange(new Date(e.target.value))}
             className="form-input"
             max={new Date().toISOString().split('T')[0]}
           />
@@ -374,87 +388,87 @@ const PositionReport = () => {
               )}
             </button>
          
-  {dropdownOpen && (
-    <div style={{
-      position: 'absolute',
-      top: '100%',
-      right: 0,
-      marginTop: '0.25rem',
-      backgroundColor: 'white',
-      border: '1px solid #dee2e6',
-      borderRadius: '0.375rem',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-      zIndex: 1000,
-      minWidth: '160px'
-    }}>
-      <button 
-        className="dropdown-item"
-        onClick={() => handleExport('excel')}
-        disabled={exportLoading || !dataLoaded}
-        style={{
-          width: '100%',
-          padding: '0.5rem 1rem',
-          border: 'none',
-          backgroundColor: 'transparent',
-          textAlign: 'left',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          cursor: dataLoaded ? 'pointer' : 'not-allowed',
-          opacity: dataLoaded ? 1 : 0.6
-        }}
-      >
-        <Table size={16} />
-        Export to Excel
-      </button>
-      <button 
-        className="dropdown-item"
-        onClick={() => handleExport('pdf')}
-        disabled={exportLoading || !dataLoaded}
-        style={{
-          width: '100%',
-          padding: '0.5rem 1rem',
-          border: 'none',
-          backgroundColor: 'transparent',
-          textAlign: 'left',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          cursor: dataLoaded ? 'pointer' : 'not-allowed',
-          opacity: dataLoaded ? 1 : 0.6,
-          borderTop: '1px solid #dee2e6'
-        }}
-      >
-        <FileText size={16} />
-        Export to PDF
-      </button>
-      <button 
-        className="dropdown-item"
-        onClick={() => handleExport('bsa')}
-        disabled={bsaLoading || !dataLoaded}
-        style={{
-          width: '100%',
-          padding: '0.5rem 1rem',
-          border: 'none',
-          backgroundColor: 'transparent',
-          textAlign: 'left',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          cursor: dataLoaded ? 'pointer' : 'not-allowed',
-          opacity: dataLoaded ? 1 : 0.6,
-          borderTop: '1px solid #dee2e6'
-        }}
-      >
-        {bsaLoading ? (
-          <LoadingSpinner size="small" />
-        ) : (
-          <FileText size={16} />
-        )}
-        BSA Report
-      </button>
-    </div>
-  )}
+            {dropdownOpen && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: '0.25rem',
+                backgroundColor: 'white',
+                border: '1px solid #dee2e6',
+                borderRadius: '0.375rem',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                zIndex: 1000,
+                minWidth: '160px'
+              }}>
+                <button 
+                  className="dropdown-item"
+                  onClick={() => handleExport('excel')}
+                  disabled={exportLoading || !dataLoaded}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 1rem',
+                    border: 'none',
+                    backgroundColor: 'transparent',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    cursor: dataLoaded ? 'pointer' : 'not-allowed',
+                    opacity: dataLoaded ? 1 : 0.6
+                  }}
+                >
+                  <Table size={16} />
+                  Export to Excel
+                </button>
+                <button 
+                  className="dropdown-item"
+                  onClick={() => handleExport('pdf')}
+                  disabled={exportLoading || !dataLoaded}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 1rem',
+                    border: 'none',
+                    backgroundColor: 'transparent',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    cursor: dataLoaded ? 'pointer' : 'not-allowed',
+                    opacity: dataLoaded ? 1 : 0.6,
+                    borderTop: '1px solid #dee2e6'
+                  }}
+                >
+                  <FileText size={16} />
+                  Export to PDF
+                </button>
+                <button 
+                  className="dropdown-item"
+                  onClick={() => handleExport('bsa')}
+                  disabled={bsaLoading || !dataLoaded}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 1rem',
+                    border: 'none',
+                    backgroundColor: 'transparent',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    cursor: dataLoaded ? 'pointer' : 'not-allowed',
+                    opacity: dataLoaded ? 1 : 0.6,
+                    borderTop: '1px solid #dee2e6'
+                  }}
+                >
+                  {bsaLoading ? (
+                    <LoadingSpinner size="small" />
+                  ) : (
+                    <FileText size={16} />
+                  )}
+                  BSA Report
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -500,6 +514,22 @@ const PositionReport = () => {
             </div>
           </div>
 
+          {/* Capital Information Card */}
+          <div className="card" style={{ marginBottom: '2rem', backgroundColor: '#f8f9fa' }}>
+            <h4 style={{ marginBottom: '1rem' }}>Capital Information</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div>
+                <strong>Paid-up Capital:</strong> {formatCurrency(positionData.overall.paidUpCapital, 'ETB')}
+              </div>
+              <div>
+                <strong>Effective Date:</strong> {positionData.overall.calculationDate}
+              </div>
+            </div>
+            <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#6c757d' }}>
+              <em>Using capital effective on or before the report date</em>
+            </div>
+          </div>
+
           {/* Detailed Table */}
           <div className="card">
             <h3 style={{ marginBottom: '1rem' }}>Detailed Position by Currency</h3>
@@ -518,7 +548,7 @@ const PositionReport = () => {
               <li>Negative = short position (liabilities exceed assets)</li>
               <li>Positions &gt; 15% and &le; 0% of capital require management attention</li>
               <li>Local amounts use mid exchange rates</li>
-              <li>Paid-up Capital: {formatCurrency(paidUpCapital, 'ETB')}</li>
+              <li>Paid-up Capital: {formatCurrency(positionData.overall.paidUpCapital, 'ETB')} (effective for {positionData.overall.calculationDate})</li>
               <li>Report Date: {selectedDate.toISOString().split('T')[0]}</li>
             </ul>
           </div>

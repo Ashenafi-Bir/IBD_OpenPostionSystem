@@ -250,6 +250,7 @@ export const balanceItemService = {
 };
 
 // Paid-up Capital services
+// Paid-up Capital services
 export const paidUpCapitalService = {
   get: () => 
     api.get('/paid-up-capital').then(res => res.data),
@@ -260,10 +261,12 @@ export const paidUpCapitalService = {
   getHistory: () => 
     api.get('/paid-up-capital/history').then(res => res.data),
   
+  getTimeline: (startDate, endDate) =>
+    api.get(`/paid-up-capital/timeline?startDate=${startDate}&endDate=${endDate}`).then(res => res.data),
+  
   update: (data) => 
     api.put('/paid-up-capital', data).then(res => res.data),
 };
-
 // BSA Report services
 export const bsaReportService = {
   generate: (date) => 

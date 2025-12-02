@@ -8,6 +8,7 @@ const DailyBalanceEntry = () => {
   const [currencies, setCurrencies] = useState([]);
   const [selectedBank, setSelectedBank] = useState('');
   const [balanceDate, setBalanceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [modalBalanceDate, setModalBalanceDate] = useState(new Date().toISOString().split('T')[0]);
   const [balanceAmount, setBalanceAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
@@ -35,13 +36,13 @@ const DailyBalanceEntry = () => {
         setRefreshing(true);
       }
       setError('');
-      
+
       const response = await correspondentService.getBanks();
       const banksData = response?.data?.data || response?.data || [];
       const banksArray = Array.isArray(banksData) ? banksData : [];
-      
+
       setBanks(banksArray);
-      
+
       if (banksArray.length > 0 && !selectedBank) {
         setSelectedBank(banksArray[0].id.toString());
       }
@@ -81,7 +82,7 @@ const DailyBalanceEntry = () => {
       setSubmitting(true);
       await correspondentService.addDailyBalance({
         bankId: parseInt(selectedBank),
-        balanceDate,
+        balanceDate: modalBalanceDate,
         balanceAmount: parseFloat(balanceAmount),
         notes
       });
@@ -90,11 +91,11 @@ const DailyBalanceEntry = () => {
       setBalanceAmount('');
       setNotes('');
       setShowModal(false);
-      
+
       setTimeout(() => {
         loadBanks(true);
       }, 500);
-      
+
     } catch (err) {
       console.error('Error adding balance:', err);
       setError(err.response?.data?.error || err.message || 'Failed to add balance');
@@ -103,75 +104,26 @@ const DailyBalanceEntry = () => {
     }
   };
 
-  const handleRefresh = () => {
-    loadBanks(true);
-  };
-
-  const getCurrencyInfo = (bank) => {
-    if (!bank) return { code: 'N/A', name: 'N/A' };
-    
-    if (bank.currency) {
-      return { 
-        code: bank.currency.code || 'N/A', 
-        name: bank.currency.name || 'N/A' 
-      };
-    }
-    
-    const currencyId = bank.currencyId;
-    if (currencyId && currencies.length > 0) {
-      const foundCurrency = currencies.find(currency => currency.id === currencyId);
-      if (foundCurrency) {
-        return { code: foundCurrency.code, name: foundCurrency.name };
-      }
-    }
-    
-    return { code: 'N/A', name: 'N/A' };
-  };
-
-  const getSelectedBankCurrency = () => {
-    const bank = banks.find(b => b.id === parseInt(selectedBank));
-    const currencyInfo = getCurrencyInfo(bank);
-    return currencyInfo.code;
-  };
-
-  const getRecentBalances = () => {
-    const recentBalances = [];
-    
-    banks.forEach(bank => {
-      if (bank.balances && Array.isArray(bank.balances)) {
-        bank.balances.slice(0, 3).forEach(balance => {
-          recentBalances.push({
-            ...balance,
-            bankName: bank.bankName,
-            currencyInfo: getCurrencyInfo(bank)
-          });
-        });
-      }
-    });
-    
-    return recentBalances.sort((a, b) => new Date(b.balanceDate) - new Date(a.balanceDate)).slice(0, 10);
-  };
-
-  // Excel Import/Export Functions
-  const downloadTemplate = async () => {
+  const downloadTemplate = () => {
     try {
       // Create workbook
       const wb = XLSX.utils.book_new();
-      
+
+      // Use the modal balance date for the template
+      const templateDate = modalBalanceDate;
+      console.log('Using modal date for template:', templateDate);
+
       // Prepare data for template - create rows for each bank
       const templateRows = [
         // Headers
         ['Balance Date', 'Bank ID', 'Bank Name', 'Currency Code', 'Balance Amount', 'Notes'],
       ];
 
-      // Get current date for the template
-      const currentDate = new Date().toISOString().split('T')[0];
-
-      // Create sample entries for each bank
+      // Create sample entries for each bank with the modal date
       banks.forEach(bank => {
         const currencyInfo = getCurrencyInfo(bank);
         templateRows.push([
-          currentDate, // Current date
+          templateDate, // Use the modal date
           bank.id, // Bank ID
           bank.bankName, // Bank Name
           currencyInfo.code, // Currency Code
@@ -195,7 +147,7 @@ const DailyBalanceEntry = () => {
         ['TEMPLATE SUMMARY:', '', '', '', '', ''],
         [`- Total Banks: ${banks.length}`, '', '', '', '', ''],
         [`- Total Rows: ${banks.length}`, '', '', '', '', ''],
-        [`- Date: ${currentDate}`, '', '', '', '', ''],
+        [`- Selected Date: ${templateDate}`, '', '', '', '', ''],
         ['', '', '', '', '', ''],
         ['REFERENCE - BANK DETAILS:', 'Bank ID', 'Bank Name', 'Currency', 'Account Number', 'SWIFT Code'],
         ...banks.map(bank => {
@@ -206,7 +158,7 @@ const DailyBalanceEntry = () => {
 
       // Create worksheet
       const ws = XLSX.utils.aoa_to_sheet(templateRows);
-      
+
       // Set column widths
       const colWidths = [
         { wch: 15 }, // Balance Date
@@ -221,7 +173,7 @@ const DailyBalanceEntry = () => {
       // Add styling to make the template more user-friendly
       if (ws['!ref']) {
         const range = XLSX.utils.decode_range(ws['!ref']);
-        
+
         // Style header row (row 0)
         for (let col = range.s.c; col <= range.e.c; col++) {
           const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
@@ -267,8 +219,8 @@ const DailyBalanceEntry = () => {
       // Add worksheet to workbook
       XLSX.utils.book_append_sheet(wb, ws, 'Bank Balances Template');
 
-      // Generate file and download
-      const fileName = `correspondent_bank_balances_template_${currentDate}.xlsx`;
+      // Generate file and download - use the modal date in filename
+      const fileName = `correspondent_bank_balances_template_${templateDate}.xlsx`;
       XLSX.writeFile(wb, fileName);
       
     } catch (error) {
@@ -379,6 +331,12 @@ const DailyBalanceEntry = () => {
     }
   };
 
+  // Reset modal date when opening modal
+  const handleOpenModal = () => {
+    setModalBalanceDate(balanceDate); // Initialize with current header date
+    setShowModal(true);
+  };
+
   const recentBalances = getRecentBalances();
 
   if (loading && !refreshing) {
@@ -409,18 +367,25 @@ const DailyBalanceEntry = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h1>Daily Balance Entry</h1>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <input
-            type="date"
-            value={balanceDate}
-            onChange={(e) => setBalanceDate(e.target.value)}
-            className="form-input"
-          />
+          <div className="form-group" style={{ margin: 0 }}>
+            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>
+              Current Date:
+            </label>
+            <input
+              type="date"
+              value={balanceDate}
+              onChange={(e) => setBalanceDate(e.target.value)}
+              className="form-input"
+              style={{ minWidth: '150px' }}
+            />
+          </div>
           
           {/* Import/Export Buttons */}
           <button
             onClick={downloadTemplate}
             className="btn btn-secondary"
             disabled={loading || banks.length === 0}
+            title={`Download template using modal date: ${modalBalanceDate}`}
           >
             <Download size={16} /> Download Template
           </button>
@@ -444,7 +409,7 @@ const DailyBalanceEntry = () => {
             {refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
           <button
-            onClick={() => setShowModal(true)}
+            onClick={handleOpenModal}
             className="btn btn-primary"
           >
             <Plus size={16} /> Add Balance
@@ -576,8 +541,8 @@ const DailyBalanceEntry = () => {
                         }} />
                         <input
                           type="date"
-                          value={balanceDate}
-                          onChange={(e) => setBalanceDate(e.target.value)}
+                          value={modalBalanceDate}
+                          onChange={(e) => setModalBalanceDate(e.target.value)}
                           className="form-input"
                           style={{ paddingLeft: '40px' }}
                           required

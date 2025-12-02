@@ -39,6 +39,7 @@ export const generateBSAReport = [
           },
           order: [['category', 'ASC'], ['balanceType', 'ASC'], ['displayOrder', 'ASC']]
         }),
+        // FIXED: Get paid-up capital for the specific date
         models.PaidUpCapital.findOne({
           where: {
             effectiveDate: { [Op.lte]: dateString },
@@ -62,6 +63,11 @@ export const generateBSAReport = [
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('BSA Report');
 
+      // FIXED: Calculate the actual paid-up capital to use (in thousands for the report)
+      const actualPaidUpCapital = paidUpCapital 
+        ? parseFloat(paidUpCapital.capitalAmount) / 1000  // Convert to thousands
+        : 2979527 / 1000; // Fallback to default in thousands
+
       // Build the report structure dynamically based on existing balance items and currencies
       await buildDynamicBSAReportStructure(worksheet, {
         date: dateString,
@@ -70,10 +76,16 @@ export const generateBSAReport = [
         balanceItems,
         exchangeRates,
         dailyBalances,
-       paidUpCapital: paidUpCapital 
-  ? parseFloat(paidUpCapital.capitalAmount) / 1000 
-  : 2979527 / 1000
-
+        paidUpCapital: actualPaidUpCapital, // This is now in thousands
+        paidUpCapitalDetails: paidUpCapital ? {
+          amount: paidUpCapital.capitalAmount,
+          effectiveDate: paidUpCapital.effectiveDate,
+          currency: paidUpCapital.currency
+        } : {
+          amount: 2979527,
+          effectiveDate: dateString,
+          currency: 'ETB'
+        }
       });
 
       // Set response headers

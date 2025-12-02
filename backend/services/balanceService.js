@@ -17,7 +17,7 @@ export class BalanceService {
     }
   }
 
-  // Get paid-up capital for specific date
+  // Get paid-up capital for specific date (FIXED - uses effective date logic)
   static async getPaidUpCapitalForDate(date) {
     try {
       const capital = await models.PaidUpCapital.findOne({
@@ -238,7 +238,7 @@ export class BalanceService {
     }
   }
 
-  // Calculate bank position with dynamic capital
+  // Calculate bank position with dynamic capital (FIXED - uses date-specific capital)
   static async calculatePosition(date) {
     try {
       const currencies = await models.Currency.findAll({ where: { isActive: true } });
@@ -247,7 +247,7 @@ export class BalanceService {
         include: [models.Currency]
       });
 
-      // Get dynamic paid-up capital for the date
+      // Get dynamic paid-up capital for the specific date
       const paidUpCapital = await this.getPaidUpCapitalForDate(date);
       
       const positionReport = {
@@ -257,7 +257,8 @@ export class BalanceService {
           totalShort: 0,
           overallOpenPosition: 0,
           overallPercentage: 0,
-          paidUpCapital: paidUpCapital
+          paidUpCapital: paidUpCapital,
+          calculationDate: date
         }
       };
 
@@ -312,6 +313,24 @@ export class BalanceService {
       return positionReport;
     } catch (error) {
       throw new Error(`Failed to calculate position: ${error.message}`);
+    }
+  }
+
+  // New method to get capital for date range
+  static async getCapitalForDateRange(startDate, endDate) {
+    try {
+      const capitals = await models.PaidUpCapital.findAll({
+        where: {
+          effectiveDate: {
+            [Op.between]: [startDate, endDate]
+          }
+        },
+        order: [['effectiveDate', 'ASC']]
+      });
+
+      return capitals;
+    } catch (error) {
+      throw new Error(`Failed to fetch capital for date range: ${error.message}`);
     }
   }
 }
