@@ -45,7 +45,7 @@ export class BalanceService {
 
       // Get cash on hand balance item
       const cashOnHandItem = await models.BalanceItem.findOne({ 
-        where: { code: 'CASH_ON_HAND' } 
+        where: { code: 'CURRENCY_ON_HAND' } 
       });
 
       // Check if there's a manually updated cash on hand balance for today
@@ -198,7 +198,7 @@ export class BalanceService {
           const amount = parseFloat(balance.amount);
           
           // Skip cash on hand from manual balances if we're using calculated value
-          if (balance.BalanceItem.code === 'CASH_ON_HAND') {
+          if (balance.BalanceItem.code === 'CURRENCY_ON_HAND') {
             return; // Skip manual entry if we're using calculated value
           }
           

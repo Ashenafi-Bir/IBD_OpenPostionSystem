@@ -115,7 +115,7 @@ async function updateDailyBalancesFromTransaction(transaction, userId, dbTransac
     
     // Get the cash on hand balance item
     const cashOnHandItem = await models.BalanceItem.findOne({
-      where: { code: 'CASH_ON_HAND' }
+      where: { code: 'CURRENCY_ON_HAND' }
     }, { transaction: dbTransaction });
 
     if (!cashOnHandItem) {

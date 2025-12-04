@@ -5,6 +5,8 @@ import seedCorrespondentBanks from './seedCorrespondentBanks.js';
 const seedData = async () => {
   try {
     console.log('Starting database seeding...');
+      // ADD THIS LINE 👇👇👇
+    const now = new Date();
 
     // Create currencies
     const currencies = await models.Currency.bulkCreate([
@@ -18,30 +20,208 @@ const seedData = async () => {
 
     // Create balance items
     const balanceItems = await models.BalanceItem.bulkCreate([
-      // Assets
-      { code: 'CASH_ON_HAND', name: 'F/Cy Cash on hand', category: 'asset', displayOrder: 1 },
-      { code: 'CASH_IN_TRANSIT', name: 'F/Cy Cash in transit (NBE)', category: 'asset', displayOrder: 2 },
-      { code: 'SHORT_TIME_DEPOSIT', name: 'Short Time Deposit', category: 'asset', displayOrder: 3 },
-      { code: 'CORR_BANK_BALANCE', name: 'F/Cy Correspondent Bank Balance', category: 'asset', displayOrder: 4 },
-      { code: 'ODBP', name: 'ODBP', category: 'asset', displayOrder: 5 },
-      { code: 'UNCLEARED_EFFECTS', name: 'Uncleared effects - international money transfer', category: 'asset', displayOrder: 6 },
-      
-      // Liabilities
-      { code: 'DIASPORA_AC', name: 'DIASPORA A/C', category: 'liability', displayOrder: 1 },
-      { code: 'FCY_SAVING_AC', name: 'FCY SAVING A/C', category: 'liability', displayOrder: 2 },
-      { code: 'NR_FCY_AC', name: 'NR-FCY A/C', category: 'liability', displayOrder: 3 },
-      { code: 'RETENTION_AC_A', name: 'RETENTION A/C\'\' A\'\'', category: 'liability', displayOrder: 4 },
-      { code: 'RETENTION_AC_B', name: 'RETENTION A/C\'\' B\'\'', category: 'liability', displayOrder: 5 },
-      
-      // Memorandum Items
-      { code: 'ACTIVE_LC', name: 'Active Letter of Credit (L/C)', category: 'memo_liability', displayOrder: 1 },
-      { code: 'INACTIVE_LC', name: 'Inactive Letter of Credit (L/C)', category: 'memo_liability', displayOrder: 2 },
-      { code: 'IBC_100', name: 'IBC (100% Collected)', category: 'memo_liability', displayOrder: 3 },
-      { code: 'EPSE', name: 'EPSE', category: 'memo_liability', displayOrder: 4 },
-      { code: 'IBC_OUTSTANDING', name: 'IBC Outstanding (with less than 100% deposit)', category: 'memo_liability', displayOrder: 5 },
-      { code: 'OUTSTANDING_PO', name: 'Outstanding purchase order (PO)', category: 'memo_liability', displayOrder: 6 },
-      { code: 'SUPPLIER_CREDIT_PO', name: 'Supplier Credit PO', category: 'memo_liability', displayOrder: 7 },
-      { code: 'SUPPLIER_CREDIT_LC', name: 'Supplier Credit LC', category: 'memo_liability', displayOrder: 8 }
+       // A.1 On-balance Sheet Items
+      {
+        code: "CURRENCY_ON_HAND",
+        name: "Currency on hand",
+        category: "asset",
+        balanceType: "on_balance_sheet",
+        displayOrder: 1,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        code: "DUE_FROM_BANKS",
+        name: "Due from banks",
+        category: "asset",
+        balanceType: "on_balance_sheet",
+        displayOrder: 2,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        code: "CHEQUES_IN_TRANSIT",
+        name: "Cheques and items in transit",
+        category: "asset",
+        balanceType: "on_balance_sheet",
+        displayOrder: 3,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        code: "LOANS_ADVANCES",
+        name: "Loans & advances",
+        category: "asset",
+        balanceType: "on_balance_sheet",
+        displayOrder: 4,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        code: "ACCRUED_INTEREST_RECEIVABLE",
+        name: "Accrued interest receivable",
+        category: "asset",
+        balanceType: "on_balance_sheet",
+        displayOrder: 5,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        code: "OTHER_ASSETS_ON",
+        name: "Other assets",
+        category: "asset",
+        balanceType: "on_balance_sheet",
+        displayOrder: 6,
+        createdAt: now,
+        updatedAt: now
+      },
+
+      // A.2 Off-balance Sheet Items
+      {
+        code: "UNDELIVERED_SPOT_PURCHASE",
+        name: "Undelivered spot purchase",
+        category: "asset",
+        balanceType: "off_balance_sheet",
+        displayOrder: 7,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        code: "FORWARD_PURCHASE",
+        name: "Forward purchase",
+        category: "asset",
+        balanceType: "off_balance_sheet",
+        displayOrder: 8,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        code: "OPTION_SWAPS_DERIVATIVES_ASSET",
+        name: "Option, Swaps, Derivatives",
+        category: "asset",
+        balanceType: "off_balance_sheet",
+        displayOrder: 9,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        code: "OTHER_ASSETS_OFF",
+        name: "Other assets (Off-balance sheet)",
+        category: "asset",
+        balanceType: "off_balance_sheet",
+        displayOrder: 10,
+        createdAt: now,
+        updatedAt: now
+      },
+
+      //
+      // ============================
+      // B – LIABILITIES
+      // ============================
+      //
+
+      // B.1 On-balance Sheet Items
+      {
+        code: "DUE_TO_BANKS_ABROAD",
+        name: "Due to banks abroad",
+        category: "liability",
+        balanceType: "on_balance_sheet",
+        displayOrder: 11,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        code: "FOREIGN_CURRENCY_DEPOSITS",
+        name: "Foreign currency deposits",
+        category: "liability",
+        balanceType: "on_balance_sheet",
+        displayOrder: 12,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        code: "BORROWINGS",
+        name: "Borrowings",
+        category: "liability",
+        balanceType: "on_balance_sheet",
+        displayOrder: 13,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        code: "ACCRUED_INTEREST_PAYABLE",
+        name: "Accrued interest payable",
+        category: "liability",
+        balanceType: "on_balance_sheet",
+        displayOrder: 14,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        code: "OTHER_LIABILITIES_ON",
+        name: "Other liabilities",
+        category: "liability",
+        balanceType: "on_balance_sheet",
+        displayOrder: 15,
+        createdAt: now,
+        updatedAt: now
+      },
+
+      // B.2 Off-balance Sheet Items
+      {
+        code: "UNDELIVERED_SPOT_SALES",
+        name: "Undelivered spot sales",
+        category: "liability",
+        balanceType: "off_balance_sheet",
+        displayOrder: 16,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        code: "FORWARD_SALES",
+        name: "Forward sales",
+        category: "liability",
+        balanceType: "off_balance_sheet",
+        displayOrder: 17,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        code: "OPTION_SWAPS_DERIVATIVES_LIABILITY",
+        name: "Option, Swaps, Derivatives",
+        category: "liability",
+        balanceType: "off_balance_sheet",
+        displayOrder: 18,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        code: "LETTER_OF_CREDIT",
+        name: "Letter of credit",
+        category: "liability",
+        balanceType: "off_balance_sheet",
+        displayOrder: 19,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        code: "GUARANTEES",
+        name: "Guarantees",
+        category: "liability",
+        balanceType: "off_balance_sheet",
+        displayOrder: 20,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        code: "OTHER_LIABILITIES_OFF",
+        name: "Other liabilities (Off-balance sheet)",
+        category: "liability",
+        balanceType: "off_balance_sheet",
+        displayOrder: 21,
+        createdAt: now,
+        updatedAt: now
+      }
     ], { ignoreDuplicates: true });
 
     // Create users

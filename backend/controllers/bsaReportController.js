@@ -61,12 +61,12 @@ export const generateBSAReport = [
 
       // Create workbook
       const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet('BSA Report');
+      const worksheet = workbook.addWorksheet('NEW BSA (2)');
 
       // FIXED: Calculate the actual paid-up capital to use (in thousands for the report)
       const actualPaidUpCapital = paidUpCapital 
         ? parseFloat(paidUpCapital.capitalAmount) / 1000  // Convert to thousands
-        : 2979527 / 1000; // Fallback to default in thousands
+        : 6080000000 / 1000; // Fallback to default in thousands
 
       // Build the report structure dynamically based on existing balance items and currencies
       await buildDynamicBSAReportStructure(worksheet, {
@@ -82,7 +82,7 @@ export const generateBSAReport = [
           effectiveDate: paidUpCapital.effectiveDate,
           currency: paidUpCapital.currency
         } : {
-          amount: 2979527,
+          amount: 6080000000,
           effectiveDate: dateString,
           currency: 'ETB'
         }
@@ -124,6 +124,33 @@ async function buildDynamicBSAReportStructure(worksheet, data) {
     return rate ? parseFloat(rate.midRate) : 1;
   };
 
+  // Reorder currencies: USD, EUR, CHF, GBP first, then others alphabetically
+  const reorderCurrencies = (currencies) => {
+    const priorityOrder = ['USD', 'EUR', 'CHF', 'GBP'];
+    const priorityCurrencies = [];
+    const otherCurrencies = [];
+    
+    currencies.forEach(currency => {
+      if (priorityOrder.includes(currency.code)) {
+        priorityCurrencies.push(currency);
+      } else {
+        otherCurrencies.push(currency);
+      }
+    });
+    
+    // Sort priority currencies according to priorityOrder
+    priorityCurrencies.sort((a, b) => {
+      return priorityOrder.indexOf(a.code) - priorityOrder.indexOf(b.code);
+    });
+    
+    // Sort other currencies alphabetically
+    otherCurrencies.sort((a, b) => a.code.localeCompare(b.code));
+    
+    return [...priorityCurrencies, ...otherCurrencies];
+  };
+
+  const orderedCurrencies = reorderCurrencies(currencies);
+
   // Title and headers (fixed as per requirement)
   worksheet.mergeCells('B1:V1');
   worksheet.getCell('B1').value = 'ANNEXES';
@@ -135,34 +162,32 @@ async function buildDynamicBSAReportStructure(worksheet, data) {
   worksheet.getCell('B2').font = { bold: true, size: 12 };
   worksheet.getCell('B2').alignment = { horizontal: 'center' };
 
- // Daily Report header spanning rows 4-7 with light red background
-worksheet.mergeCells('B4:V7');
-
-const headerCell = worksheet.getCell('B4');
-headerCell.value = 'Daily Report on Foreign Currency Positions';
-headerCell.font = { bold: true, size: 14, color: { argb: 'FFFF0000' } }; // Bold red font
-headerCell.alignment = { horizontal: 'center', vertical: 'middle' };
-headerCell.fill = {
-  type: 'pattern',
-  pattern: 'solid',
-  fgColor: { argb: 'FFF1DCDB' } // Light red background
-};
-
-// ✅ Add left border only to the entire merged region (B4:V7)
-const startRow = 4;
-const endRow = 7;
-const leftColumn = 2; // Column B
-
-for (let row = startRow; row <= endRow; row++) {
-  worksheet.getRow(row).getCell(leftColumn).border = {
-    left: { style: 'thin', color: { argb: 'FF000000' } } // Black left border
+  // Daily Report header spanning rows 4-7 with light red background
+  worksheet.mergeCells('B4:V7');
+  const headerCell = worksheet.getCell('B4');
+  headerCell.value = 'Daily Report on Foreign Currency Positions';
+  headerCell.font = { bold: true, size: 14, color: { argb: 'FFFF0000' } };
+  headerCell.alignment = { horizontal: 'center', vertical: 'middle' };
+  headerCell.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFF1DCDB' }
   };
-}
 
-  // Apply the same background to all merged cells
+  // Add left border to the entire merged region
+  const startRow = 4;
+  const endRow = 7;
+  const leftColumn = 2;
+  for (let row = startRow; row <= endRow; row++) {
+    worksheet.getRow(row).getCell(leftColumn).border = {
+      left: { style: 'thin', color: { argb: 'FF000000' } }
+    };
+  }
+
+  // Apply background to all merged cells
   for (let row = 4; row <= 7; row++) {
     const worksheetRow = worksheet.getRow(row);
-    for (let col = 2; col <= 22; col++) { // Columns B to V
+    for (let col = 2; col <= 22; col++) {
       worksheetRow.getCell(col).fill = {
         type: 'pattern',
         pattern: 'solid',
@@ -172,8 +197,7 @@ for (let row = startRow; row <= endRow; row++) {
   }
 
   // Institution info with light green background
-  const institutionRows = [8, 9, 10, 11];
-  worksheet.getCell('B8').value = 'Institution Code';
+  worksheet.getCell('B8').value = 'Instiution Code';
   worksheet.getCell('C8').value = '0000017';
   
   worksheet.getCell('B9').value = 'Financial Year';
@@ -186,31 +210,44 @@ for (let row = startRow; row <= endRow; row++) {
   worksheet.getCell('C11').value = date;
 
   // Apply light green background and bold font to institution info
-  institutionRows.forEach(rowNum => {
-    const worksheetRow = worksheet.getRow(rowNum);
+  for (let row = 8; row <= 11; row++) {
+    const worksheetRow = worksheet.getRow(row);
     worksheetRow.getCell('B').fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFECF0DF' } // Light green background
+      fgColor: { argb: 'FFECF0DF' }
     };
     worksheetRow.getCell('C').fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFECF0DF' } // Light green background
+      fgColor: { argb: 'FFECF0DF' }
     };
     worksheetRow.getCell('B').font = { bold: true };
     worksheetRow.getCell('C').font = { bold: true };
-  });
+  }
 
   // Calculate dynamic column ranges
+  // We need columns for: orderedCurrencies + 3 Others columns + 1 Overall Exposure
   const currencyColStart = 67; // 'C' character code
-  const currencyColEnd = currencyColStart + currencies.length - 1;
-  const overallExposureCol = String.fromCharCode(currencyColEnd + 1);
-  const overallExposureColNum = currencyColEnd - 64 + 1; // Convert to column number (including overall exposure)
+  const currencyColEnd = currencyColStart + orderedCurrencies.length - 1;
+  const othersColStart = currencyColEnd + 1;
+  const othersColEnd = othersColStart + 2; // 3 columns total
+  const overallExposureCol = String.fromCharCode(othersColEnd + 1);
+  const overallExposureColNum = overallExposureCol.charCodeAt(0) - 64;
+
+  // Add "In Thousands" note in the column just before Others in Single Currency header
+  const lastCurrencyCol = String.fromCharCode(currencyColEnd);
+  worksheet.getCell(`${lastCurrencyCol}13`).value = 'In Thousands';
+  worksheet.getCell(`${lastCurrencyCol}13`).font = { italic: true };
+  worksheet.getCell(`${lastCurrencyCol}13`).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFFFFF00' }   // Yellow background
+  };
 
   // Table headers - NEW STRUCTURE with merged rows
-  const headerRow1 = 14; // Changed from 16 to remove free rows
-  const headerRow2 = 15; // Changed from 17 to remove free rows
+  const headerRow1 = 14;
+  const headerRow2 = 15;
   
   // First header row
   worksheet.getCell(`A${headerRow1}`).value = 'S/No';
@@ -225,19 +262,30 @@ for (let row = startRow; row <= endRow; row++) {
   worksheet.mergeCells(`C${headerRow1}:${String.fromCharCode(currencyColEnd)}${headerRow1}`);
   worksheet.getCell(`C${headerRow1}`).alignment = { horizontal: 'center', vertical: 'middle' };
   
+  worksheet.getCell(`${String.fromCharCode(othersColStart)}${headerRow1}`).value = 'Others in Single Currency';
+  worksheet.mergeCells(`${String.fromCharCode(othersColStart)}${headerRow1}:${String.fromCharCode(othersColEnd)}${headerRow1}`);
+  worksheet.getCell(`${String.fromCharCode(othersColStart)}${headerRow1}`).alignment = { horizontal: 'center', vertical: 'middle' };
+  
   worksheet.getCell(`${overallExposureCol}${headerRow1}`).value = 'Overall Exposure';
   worksheet.mergeCells(`${overallExposureCol}${headerRow1}:${overallExposureCol}${headerRow2}`);
   worksheet.getCell(`${overallExposureCol}${headerRow1}`).alignment = { horizontal: 'center', vertical: 'middle' };
 
   // Second header row - individual currencies
-  currencies.forEach((currency, index) => {
+  orderedCurrencies.forEach((currency, index) => {
     const col = String.fromCharCode(currencyColStart + index);
     worksheet.getCell(`${col}${headerRow2}`).value = currency.code;
     worksheet.getCell(`${col}${headerRow2}`).font = { bold: true };
     worksheet.getCell(`${col}${headerRow2}`).alignment = { horizontal: 'center', vertical: 'middle' };
   });
 
-  // Apply styling to header rows - only up to Overall Exposure column
+  // Add Others column headers (empty in sample)
+  for (let i = 0; i < 3; i++) {
+    const col = String.fromCharCode(othersColStart + i);
+    worksheet.getCell(`${col}${headerRow2}`).value = '';
+    worksheet.getCell(`${col}${headerRow2}`).alignment = { horizontal: 'center', vertical: 'middle' };
+  }
+
+  // Apply styling to header rows
   [headerRow1, headerRow2].forEach(rowNum => {
     const worksheetRow = worksheet.getRow(rowNum);
     for (let col = 1; col <= overallExposureColNum; col++) {
@@ -245,7 +293,7 @@ for (let row = startRow; row <= endRow; row++) {
       cell.fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FFFFFFFF' } // Light blue background
+        fgColor: { argb: 'FFFFFFFF' }
       };
       cell.font = { bold: true };
       cell.border = {
@@ -257,9 +305,9 @@ for (let row = startRow; row <= endRow; row++) {
     }
   });
 
-  let currentRow = 16; // Changed from 18 to remove free rows
+  let currentRow = 16;
   
-  // Filter balance items to only include assets and liabilities (no memo items)
+  // Filter balance items
   const assetItems = balanceItems.filter(item => 
     item.category === 'asset' && item.isActive
   );
@@ -271,32 +319,32 @@ for (let row = startRow; row <= endRow; row++) {
   let totalAssetsRow = null;
   let totalLiabilitiesRow = null;
 
-  // Foreign Currency Assets header - SPAN FULL FROM B TO LAST CURRENCY COLUMN
+  // Foreign Currency Assets header
   if (assetItems.length > 0) {
     worksheet.getCell(`A${currentRow}`).value = '1';
     worksheet.getCell(`A${currentRow}`).fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFEEECE0' } // Light yellow
+      fgColor: { argb: 'FFEEECE0' }
     };
     
-    // Merge cells from B to last currency column (not including Overall Exposure)
-    const lastCurrencyCol = String.fromCharCode(currencyColEnd);
-    worksheet.mergeCells(`B${currentRow}:${lastCurrencyCol}${currentRow}`);
+    // Merge cells from B to last Others column (not including Overall Exposure)
+    const lastOthersCol = String.fromCharCode(othersColEnd);
+    worksheet.mergeCells(`B${currentRow}:${lastOthersCol}${currentRow}`);
     worksheet.getCell(`B${currentRow}`).value = 'Foreign Currency Assets';
     worksheet.getCell(`B${currentRow}`).font = { bold: true };
     
     // Apply light yellow background to the entire merged area
-    for (let col = 1; col <= currencyColEnd - 64 + 1; col++) {
+    for (let col = 1; col <= othersColEnd - 64 + 1; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       cell.fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FFEEECE0' } // Light yellow
+        fgColor: { argb: 'FFEEECE0' }
       };
     }
     
-    // Apply borders to this row
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       cell.border = {
@@ -313,39 +361,37 @@ for (let row = startRow; row <= endRow; row++) {
     const onBalanceAssets = assetItems.filter(item => item.balanceType === 'on_balance_sheet');
     const offBalanceAssets = assetItems.filter(item => item.balanceType === 'off_balance_sheet');
 
-  // On-balance Sheet Items - only if they exist
-if (onBalanceAssets.length > 0) {
-  worksheet.getCell(`A${currentRow}`).value = '1.1';
-  worksheet.getCell(`B${currentRow}`).value = 'On-balance Sheet Items';
+    // On-balance Sheet Items
+    if (onBalanceAssets.length > 0) {
+      worksheet.getCell(`A${currentRow}`).value = '1.1';
+      worksheet.getCell(`B${currentRow}`).value = 'On-balance Sheet Items';
+      worksheet.getCell(`A${currentRow}`).font = { bold: true };
+      worksheet.getCell(`B${currentRow}`).font = { bold: true };
 
-  // ✅ Make both cells bold
-  worksheet.getCell(`A${currentRow}`).font = { bold: true };
-  worksheet.getCell(`B${currentRow}`).font = { bold: true };
+      for (let col = 1; col <= overallExposureColNum; col++) {
+        const cell = worksheet.getRow(currentRow).getCell(col);
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+      }
 
-  // Apply thin borders for sub-headers as requested
-  for (let col = 1; col <= overallExposureColNum; col++) {
-    const cell = worksheet.getRow(currentRow).getCell(col);
-    cell.border = {
-      top: { style: 'thin' },
-      left: { style: 'thin' },
-      bottom: { style: 'thin' },
-      right: { style: 'thin' }
-    };
-  }
+      currentRow++;
 
-  currentRow++;
       // Add each on-balance asset item
       onBalanceAssets.forEach((item, index) => {
         worksheet.getCell(`A${currentRow}`).value = `1.1.${index + 1}`;
         worksheet.getCell(`B${currentRow}`).value = item.name;
         
-        currencies.forEach((currency, colIndex) => {
+        orderedCurrencies.forEach((currency, colIndex) => {
           const col = String.fromCharCode(currencyColStart + colIndex);
           const amount = getBalanceAmount(currency.id, item.id);
-          worksheet.getCell(`${col}${currentRow}`).value = amount / 1000 ;
+          worksheet.getCell(`${col}${currentRow}`).value = amount / 1000;
         });
         
-        // Apply borders to data rows
+        // Apply borders (Others columns remain empty)
         for (let col = 1; col <= overallExposureColNum; col++) {
           const cell = worksheet.getRow(currentRow).getCell(col);
           cell.border = {
@@ -360,14 +406,13 @@ if (onBalanceAssets.length > 0) {
       });
     }
 
-    // Off-balance sheet Items - only if they exist
+    // Off-balance sheet Items
     if (offBalanceAssets.length > 0) {
       worksheet.getCell(`A${currentRow}`).value = '1.2';
       worksheet.getCell(`B${currentRow}`).value = 'Off-balance sheet Items';
-      // Apply thin borders for sub-headers as requested
-      // ✅ Make both cells bold
-  worksheet.getCell(`A${currentRow}`).font = { bold: true };
-  worksheet.getCell(`B${currentRow}`).font = { bold: true };
+      worksheet.getCell(`A${currentRow}`).font = { bold: true };
+      worksheet.getCell(`B${currentRow}`).font = { bold: true };
+      
       for (let col = 1; col <= overallExposureColNum; col++) {
         const cell = worksheet.getRow(currentRow).getCell(col);
         cell.border = {
@@ -384,13 +429,13 @@ if (onBalanceAssets.length > 0) {
         worksheet.getCell(`A${currentRow}`).value = `1.2.${index + 1}`;
         worksheet.getCell(`B${currentRow}`).value = item.name;
         
-        currencies.forEach((currency, colIndex) => {
+        orderedCurrencies.forEach((currency, colIndex) => {
           const col = String.fromCharCode(currencyColStart + colIndex);
           const amount = getBalanceAmount(currency.id, item.id);
           worksheet.getCell(`${col}${currentRow}`).value = amount / 1000;
         });
         
-        // Apply borders to data rows
+        // Apply borders (Others columns remain empty)
         for (let col = 1; col <= overallExposureColNum; col++) {
           const cell = worksheet.getRow(currentRow).getCell(col);
           cell.border = {
@@ -405,13 +450,13 @@ if (onBalanceAssets.length > 0) {
       });
     }
 
-    // Total Foreign Assets - only if we have asset items
+    // Total Foreign Assets
     totalAssetsRow = currentRow;
     worksheet.getCell(`A${totalAssetsRow}`).value = '';
     worksheet.getCell(`B${totalAssetsRow}`).value = 'Total Foreign Assets (sum 1.1 & 1.2)';
     worksheet.getRow(totalAssetsRow).font = { bold: true };
     
-    currencies.forEach((currency, colIndex) => {
+    orderedCurrencies.forEach((currency, colIndex) => {
       const col = String.fromCharCode(currencyColStart + colIndex);
       
       // Calculate start and end rows for assets
@@ -428,7 +473,7 @@ if (onBalanceAssets.length > 0) {
           }
         }
         if (formula) {
-          worksheet.getCell(`${col}${totalAssetsRow}`).value = { formula };
+          worksheet.getCell(`${col}${totalAssetsRow}`).value = { formula: `=${formula}` };
           worksheet.getCell(`${col}${totalAssetsRow}`).font = { bold: true };
         }
       } else {
@@ -437,7 +482,14 @@ if (onBalanceAssets.length > 0) {
       }
     });
     
-    // Apply borders to total row
+    // Others columns remain empty (no 0 values)
+    for (let i = 0; i < 3; i++) {
+      const col = String.fromCharCode(othersColStart + i);
+      // Leave empty - no value set
+      worksheet.getCell(`${col}${totalAssetsRow}`).font = { bold: true };
+    }
+    
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(totalAssetsRow).getCell(col);
       cell.border = {
@@ -448,35 +500,35 @@ if (onBalanceAssets.length > 0) {
       };
     }
     
-    currentRow += 1; // Reduced from 2 to 1 to remove free row
+    currentRow += 1;
   }
 
-  // Foreign Currency Liabilities - only if they exist - SPAN FULL FROM B TO LAST CURRENCY COLUMN
+  // Foreign Currency Liabilities
   if (liabilityItems.length > 0) {
     worksheet.getCell(`A${currentRow}`).value = '2';
     worksheet.getCell(`A${currentRow}`).fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFEEECE0' } // Light yellow
+      fgColor: { argb: 'FFEEECE0' }
     };
     
-    // Merge cells from B to last currency column (not including Overall Exposure)
-    const lastCurrencyCol = String.fromCharCode(currencyColEnd);
-    worksheet.mergeCells(`B${currentRow}:${lastCurrencyCol}${currentRow}`);
+    // Merge cells from B to last Others column (not including Overall Exposure)
+    const lastOthersCol = String.fromCharCode(othersColEnd);
+    worksheet.mergeCells(`B${currentRow}:${lastOthersCol}${currentRow}`);
     worksheet.getCell(`B${currentRow}`).value = 'Foreign Currency Liabilities';
     worksheet.getCell(`B${currentRow}`).font = { bold: true };
     
     // Apply light yellow background to the entire merged area
-    for (let col = 1; col <= currencyColEnd - 64 + 1; col++) {
+    for (let col = 1; col <= othersColEnd - 64 + 1; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       cell.fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FFEEECE0' } // Light yellow
+        fgColor: { argb: 'FFEEECE0' }
       };
     }
     
-    // Apply borders to this row
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       cell.border = {
@@ -493,15 +545,13 @@ if (onBalanceAssets.length > 0) {
     const onBalanceLiabilities = liabilityItems.filter(item => item.balanceType === 'on_balance_sheet');
     const offBalanceLiabilities = liabilityItems.filter(item => item.balanceType === 'off_balance_sheet');
 
-    // On-balance Sheet Items - only if they exist
+    // On-balance Sheet Items
     if (onBalanceLiabilities.length > 0) {
       worksheet.getCell(`A${currentRow}`).value = '2.1';
       worksheet.getCell(`B${currentRow}`).value = 'On-balance Sheet Items';
-
-        // ✅ Make both cells bold
-  worksheet.getCell(`A${currentRow}`).font = { bold: true };
-  worksheet.getCell(`B${currentRow}`).font = { bold: true };
-      // Apply thin borders for sub-headers as requested
+      worksheet.getCell(`A${currentRow}`).font = { bold: true };
+      worksheet.getCell(`B${currentRow}`).font = { bold: true };
+      
       for (let col = 1; col <= overallExposureColNum; col++) {
         const cell = worksheet.getRow(currentRow).getCell(col);
         cell.border = {
@@ -518,13 +568,13 @@ if (onBalanceAssets.length > 0) {
         worksheet.getCell(`A${currentRow}`).value = `2.1.${index + 1}`;
         worksheet.getCell(`B${currentRow}`).value = item.name;
         
-        currencies.forEach((currency, colIndex) => {
+        orderedCurrencies.forEach((currency, colIndex) => {
           const col = String.fromCharCode(currencyColStart + colIndex);
           const amount = getBalanceAmount(currency.id, item.id);
-          worksheet.getCell(`${col}${currentRow}`).value = amount / 1000 ;
+          worksheet.getCell(`${col}${currentRow}`).value = amount / 1000;
         });
         
-        // Apply borders to data rows
+        // Apply borders (Others columns remain empty)
         for (let col = 1; col <= overallExposureColNum; col++) {
           const cell = worksheet.getRow(currentRow).getCell(col);
           cell.border = {
@@ -539,16 +589,13 @@ if (onBalanceAssets.length > 0) {
       });
     }
 
-    // Off-balance Sheet Items - only if they exist
+    // Off-balance Sheet Items
     if (offBalanceLiabilities.length > 0) {
       worksheet.getCell(`A${currentRow}`).value = '2.2';
       worksheet.getCell(`B${currentRow}`).value = 'Off-balance Sheet Items';
-
-    // ✅ Make both cells bold
-  worksheet.getCell(`A${currentRow}`).font = { bold: true };
-  worksheet.getCell(`B${currentRow}`).font = { bold: true };
-
-      // Apply thin borders for sub-headers as requested
+      worksheet.getCell(`A${currentRow}`).font = { bold: true };
+      worksheet.getCell(`B${currentRow}`).font = { bold: true };
+      
       for (let col = 1; col <= overallExposureColNum; col++) {
         const cell = worksheet.getRow(currentRow).getCell(col);
         cell.border = {
@@ -565,13 +612,13 @@ if (onBalanceAssets.length > 0) {
         worksheet.getCell(`A${currentRow}`).value = `2.2.${index + 1}`;
         worksheet.getCell(`B${currentRow}`).value = item.name;
         
-        currencies.forEach((currency, colIndex) => {
+        orderedCurrencies.forEach((currency, colIndex) => {
           const col = String.fromCharCode(currencyColStart + colIndex);
           const amount = getBalanceAmount(currency.id, item.id);
-          worksheet.getCell(`${col}${currentRow}`).value = amount/ 1000 ;
+          worksheet.getCell(`${col}${currentRow}`).value = amount / 1000;
         });
         
-        // Apply borders to data rows
+        // Apply borders (Others columns remain empty)
         for (let col = 1; col <= overallExposureColNum; col++) {
           const cell = worksheet.getRow(currentRow).getCell(col);
           cell.border = {
@@ -586,13 +633,13 @@ if (onBalanceAssets.length > 0) {
       });
     }
 
-    // Total Foreign Liabilities - only if we have liability items
+    // Total Foreign Liabilities
     totalLiabilitiesRow = currentRow;
     worksheet.getCell(`A${totalLiabilitiesRow}`).value = '';
     worksheet.getCell(`B${totalLiabilitiesRow}`).value = 'Total Foreign Liabilities (sum 2.1 & 2.2)';
     worksheet.getRow(totalLiabilitiesRow).font = { bold: true };
     
-    currencies.forEach((currency, colIndex) => {
+    orderedCurrencies.forEach((currency, colIndex) => {
       const col = String.fromCharCode(currencyColStart + colIndex);
       
       // Calculate start and end rows for liabilities
@@ -610,7 +657,7 @@ if (onBalanceAssets.length > 0) {
           }
         }
         if (formula) {
-          worksheet.getCell(`${col}${totalLiabilitiesRow}`).value = { formula };
+          worksheet.getCell(`${col}${totalLiabilitiesRow}`).value = { formula: `=${formula}` };
           worksheet.getCell(`${col}${totalLiabilitiesRow}`).font = { bold: true };
         }
       } else {
@@ -619,7 +666,14 @@ if (onBalanceAssets.length > 0) {
       }
     });
     
-    // Apply borders to total row
+    // Others columns remain empty (no 0 values)
+    for (let i = 0; i < 3; i++) {
+      const col = String.fromCharCode(othersColStart + i);
+      // Leave empty - no value set
+      worksheet.getCell(`${col}${totalLiabilitiesRow}`).font = { bold: true };
+    }
+    
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(totalLiabilitiesRow).getCell(col);
       cell.border = {
@@ -630,7 +684,7 @@ if (onBalanceAssets.length > 0) {
       };
     }
     
-    currentRow += 1; // Reduced from 2 to 1 to remove free row
+    currentRow += 1;
   }
 
   // Fixed calculation rows (as per your requirement)
@@ -641,7 +695,7 @@ if (onBalanceAssets.length > 0) {
     worksheet.getCell(`B${currentRow}`).value = 'Foreign Exchange Position in Single Currency';
     worksheet.getRow(currentRow).font = { bold: true };
     
-    // Apply borders to this row
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       cell.border = {
@@ -658,7 +712,9 @@ if (onBalanceAssets.length > 0) {
     worksheet.getCell(`A${currentRow}`).value = '3.1';
     worksheet.getCell(`B${currentRow}`).value = 'Net long position (where assets less liabilities is +)';
     worksheet.getRow(currentRow).font = { bold: true };
-    currencies.forEach((currency, colIndex) => {
+    
+    // Add formulas for all currency columns including Others (from 3.1 onward, use formulas)
+    for (let colIndex = 0; colIndex < orderedCurrencies.length + 3; colIndex++) {
       const col = String.fromCharCode(currencyColStart + colIndex);
       const assetsCell = `${col}${totalAssetsRow}`;
       const liabilitiesCell = `${col}${totalLiabilitiesRow}`;
@@ -666,10 +722,10 @@ if (onBalanceAssets.length > 0) {
         formula: `IF((${assetsCell}-${liabilitiesCell}) > 0, (${assetsCell}-${liabilitiesCell}), 0)`
       };
       worksheet.getCell(`${col}${currentRow}`).font = { bold: true };
-    });
+    }
     const netLongRow = currentRow;
     
-    // Apply borders to this row
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       cell.border = {
@@ -686,7 +742,9 @@ if (onBalanceAssets.length > 0) {
     worksheet.getCell(`A${currentRow}`).value = '3.2';
     worksheet.getCell(`B${currentRow}`).value = 'Net short position (where assets less liabilities is -)';
     worksheet.getRow(currentRow).font = { bold: true };
-    currencies.forEach((currency, colIndex) => {
+    
+    // Add formulas for all currency columns including Others
+    for (let colIndex = 0; colIndex < orderedCurrencies.length + 3; colIndex++) {
       const col = String.fromCharCode(currencyColStart + colIndex);
       const assetsCell = `${col}${totalAssetsRow}`;
       const liabilitiesCell = `${col}${totalLiabilitiesRow}`;
@@ -694,10 +752,10 @@ if (onBalanceAssets.length > 0) {
         formula: `IF((${assetsCell}-${liabilitiesCell}) > 0, 0, (${assetsCell}-${liabilitiesCell})*(-1))`
       };
       worksheet.getCell(`${col}${currentRow}`).font = { bold: true };
-    });
+    }
     const netShortRow = currentRow;
     
-    // Apply borders to this row
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       cell.border = {
@@ -714,14 +772,23 @@ if (onBalanceAssets.length > 0) {
     worksheet.getCell(`A${currentRow}`).value = '4';
     worksheet.getCell(`B${currentRow}`).value = 'Exchange rate';
     worksheet.getRow(currentRow).font = { bold: true };
-    currencies.forEach((currency, colIndex) => {
+    
+    orderedCurrencies.forEach((currency, colIndex) => {
       const col = String.fromCharCode(currencyColStart + colIndex);
       worksheet.getCell(`${col}${currentRow}`).value = getExchangeRate(currency.id);
       worksheet.getCell(`${col}${currentRow}`).font = { bold: true };
     });
+    
+    // Others columns get 0 (from 3.1 onward)
+    for (let i = 0; i < 3; i++) {
+      const col = String.fromCharCode(othersColStart + i);
+      worksheet.getCell(`${col}${currentRow}`).value = 0;
+      worksheet.getCell(`${col}${currentRow}`).font = { bold: true };
+    }
+    
     const exchangeRateRow = currentRow;
     
-    // Apply borders to this row
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       cell.border = {
@@ -738,7 +805,9 @@ if (onBalanceAssets.length > 0) {
     worksheet.getCell(`A${currentRow}`).value = '5';
     worksheet.getCell(`B${currentRow}`).value = 'Net long position in Birr (3.1*4)';
     worksheet.getRow(currentRow).font = { bold: true };
-    currencies.forEach((currency, colIndex) => {
+    
+    // Add formulas for all currency columns including Others
+    for (let colIndex = 0; colIndex < orderedCurrencies.length + 3; colIndex++) {
       const col = String.fromCharCode(currencyColStart + colIndex);
       const netLongCell = `${col}${netLongRow}`;
       const exchangeRateCell = `${col}${exchangeRateRow}`;
@@ -746,10 +815,10 @@ if (onBalanceAssets.length > 0) {
         formula: `${netLongCell}*${exchangeRateCell}`
       };
       worksheet.getCell(`${col}${currentRow}`).font = { bold: true };
-    });
+    }
     const netLongBirrRow = currentRow;
     
-    // Apply borders to this row
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       cell.border = {
@@ -766,7 +835,9 @@ if (onBalanceAssets.length > 0) {
     worksheet.getCell(`A${currentRow}`).value = '6';
     worksheet.getCell(`B${currentRow}`).value = 'Net short position in Birr (3.2*4)';
     worksheet.getRow(currentRow).font = { bold: true };
-    currencies.forEach((currency, colIndex) => {
+    
+    // Add formulas for all currency columns including Others
+    for (let colIndex = 0; colIndex < orderedCurrencies.length + 3; colIndex++) {
       const col = String.fromCharCode(currencyColStart + colIndex);
       const netShortCell = `${col}${netShortRow}`;
       const exchangeRateCell = `${col}${exchangeRateRow}`;
@@ -774,10 +845,10 @@ if (onBalanceAssets.length > 0) {
         formula: `${netShortCell}*${exchangeRateCell}`
       };
       worksheet.getCell(`${col}${currentRow}`).font = { bold: true };
-    });
+    }
     const netShortBirrRow = currentRow;
     
-    // Apply borders to this row
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       cell.border = {
@@ -790,11 +861,13 @@ if (onBalanceAssets.length > 0) {
     
     currentRow++;
 
-    // 7 Net open position ( Greater of 5 or 6)
+    // 7 Net open position (Greater of 5 or 6)
     worksheet.getCell(`A${currentRow}`).value = '7';
     worksheet.getCell(`B${currentRow}`).value = 'Net open position ( Greater of 5 or 6)';
     worksheet.getRow(currentRow).font = { bold: true };
-    currencies.forEach((currency, colIndex) => {
+    
+    // Add formulas for all currency columns including Others
+    for (let colIndex = 0; colIndex < orderedCurrencies.length + 3; colIndex++) {
       const col = String.fromCharCode(currencyColStart + colIndex);
       const netLongBirrCell = `${col}${netLongBirrRow}`;
       const netShortBirrCell = `${col}${netShortBirrRow}`;
@@ -802,10 +875,10 @@ if (onBalanceAssets.length > 0) {
         formula: `MAX(${netLongBirrCell},${netShortBirrCell})`
       };
       worksheet.getCell(`${col}${currentRow}`).font = { bold: true };
-    });
+    }
     const netOpenRow = currentRow;
     
-    // Apply borders to this row
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       cell.border = {
@@ -822,16 +895,21 @@ if (onBalanceAssets.length > 0) {
     worksheet.getCell(`A${currentRow}`).value = '7.1';
     worksheet.getCell(`B${currentRow}`).value = 'Net Open Position Ratio (7/8.4*100)';
     worksheet.getRow(currentRow).font = { bold: true };
-    currencies.forEach((currency, colIndex) => {
+
+    // Add formulas for all currency columns including Others
+    for (let colIndex = 0; colIndex < orderedCurrencies.length + 3; colIndex++) {
       const col = String.fromCharCode(currencyColStart + colIndex);
       const netOpenCell = `${col}${netOpenRow}`;
+
+      // Apply approximation using ROUND(... , 2)
       worksheet.getCell(`${col}${currentRow}`).value = {
-        formula: `${netOpenCell}/${paidUpCapital}*100`
+        formula: `ROUND(${netOpenCell}/${paidUpCapital}*100, 2)`
       };
+
       worksheet.getCell(`${col}${currentRow}`).font = { bold: true };
-    });
+    }
     
-    // Apply borders to this row
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       cell.border = {
@@ -842,9 +920,9 @@ if (onBalanceAssets.length > 0) {
       };
     }
     
-    currentRow += 1; // Reduced from 2 to 1 to remove free row
+    currentRow += 1;
 
-    // 8 Overall Foreign Exchange Position - SPAN LIKE 1ST AND 2ND TITLE
+    // 8 Overall Foreign Exchange Position
     const overallPositionHeaderRow = currentRow;
     worksheet.getCell(`A${currentRow}`).value = '8';
     worksheet.getCell(`A${currentRow}`).fill = {
@@ -853,29 +931,29 @@ if (onBalanceAssets.length > 0) {
       fgColor: { argb: 'FFFFFFFF' } 
     };
     
-    // Merge cells from B to last currency column (not including Overall Exposure)
-    const lastCurrencyCol = String.fromCharCode(currencyColEnd);
-    worksheet.mergeCells(`B${currentRow}:${lastCurrencyCol}${currentRow}`);
+    // Merge cells from B to last Others column
+    const lastOthersCol = String.fromCharCode(othersColEnd);
+    worksheet.mergeCells(`B${currentRow}:${lastOthersCol}${currentRow}`);
     worksheet.getCell(`B${currentRow}`).value = 'Overall Foreign Exchange Position';
     worksheet.getCell(`B${currentRow}`).font = { bold: true };
     
-    // Apply light yellow background to the entire merged area
-    for (let col = 1; col <= currencyColEnd - 64 + 1; col++) {
+    // Apply background to the entire merged area
+    for (let col = 1; col <= othersColEnd - 64 + 1; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       cell.fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FFFFFFFF' } // Light yellow
+        fgColor: { argb: 'FFFFFFFF' }
       };
     }
     
-    // Apply borders to this row - NO BORDER ON BOTTOM LEFT AND RIGHT
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       cell.border = {
         top: { style: 'thin' },
         left: { style: 'thin' },
-        bottom: col === 1 || col === 2 ?  { style: 'thin' } : undefined, // No bottom border on left and right
+        bottom: col === 1 || col === 2 ? { style: 'thin' } : undefined,
         right: { style: 'thin' }
       };
     }
@@ -885,17 +963,17 @@ if (onBalanceAssets.length > 0) {
     // Remove borders and set background for Overall Exposure column above 8.1
     for (let row = headerRow1+2; row < currentRow+1; row++) {
       const cell = worksheet.getRow(row).getCell(overallExposureColNum);
-      if (row < currentRow) { // All rows above the current 8.1 row
+      if (row < currentRow) {
         cell.border = {
           top: undefined,
           left: {style: 'thin' },
           bottom: undefined,
-          right: { style: 'thin' } // Keep only right border
+          right: { style: 'thin' }
         };
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: 'FFD3D3D3' } // Light dark background
+          fgColor: { argb: 'FFD3D3D3' }
         };
       }
     }
@@ -905,16 +983,18 @@ if (onBalanceAssets.length > 0) {
     worksheet.getCell(`A${currentRow}`).value = '8.1';
     worksheet.getCell(`B${currentRow}`).value = 'Total Long Position (Sum of 5)';
     worksheet.getRow(currentRow).font = { bold: true };
-    let sumFormula = '=';
-    currencies.forEach((currency, colIndex) => {
+    
+    // Build sum formula for all currency columns including Others
+    let sumFormula = '';
+    for (let colIndex = 0; colIndex < orderedCurrencies.length + 3; colIndex++) {
       const col = String.fromCharCode(currencyColStart + colIndex);
       if (colIndex > 0) sumFormula += '+';
       sumFormula += `${col}${netLongBirrRow}`;
-    });
-    worksheet.getCell(`${overallExposureCol}${currentRow}`).value = { formula: sumFormula };
+    }
+    worksheet.getCell(`${overallExposureCol}${currentRow}`).value = { formula: `=${sumFormula}` };
     worksheet.getCell(`${overallExposureCol}${currentRow}`).font = { bold: true };
     
-    // Apply borders to this row - only columns A, B and Overall Exposure have borders
+    // Apply borders - only columns A, B and Overall Exposure have borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       if (col === 1 || col === 2 || col === overallExposureColNum) {
@@ -925,12 +1005,12 @@ if (onBalanceAssets.length > 0) {
           right: { style: 'thin' }
         };
       } else {
-        // Currency columns - no borders
+        // Currency and Others columns - no borders, light dark background
         cell.border = {};
-          cell.fill = {
+        cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: 'FFD3D3D3' } // Light dark background
+          fgColor: { argb: 'FFD3D3D3' }
         };
       }
     }
@@ -942,16 +1022,18 @@ if (onBalanceAssets.length > 0) {
     worksheet.getCell(`A${currentRow}`).value = '8.2';
     worksheet.getCell(`B${currentRow}`).value = 'Total Short Position (Sum of 6)';
     worksheet.getRow(currentRow).font = { bold: true };
-    sumFormula = '=';
-    currencies.forEach((currency, colIndex) => {
+    
+    // Build sum formula for all currency columns including Others
+    sumFormula = '';
+    for (let colIndex = 0; colIndex < orderedCurrencies.length + 3; colIndex++) {
       const col = String.fromCharCode(currencyColStart + colIndex);
       if (colIndex > 0) sumFormula += '+';
       sumFormula += `${col}${netShortBirrRow}`;
-    });
-    worksheet.getCell(`${overallExposureCol}${currentRow}`).value = { formula: sumFormula };
+    }
+    worksheet.getCell(`${overallExposureCol}${currentRow}`).value = { formula: `=${sumFormula}` };
     worksheet.getCell(`${overallExposureCol}${currentRow}`).font = { bold: true };
     
-    // Apply borders to this row - only columns A, B and Overall Exposure have borders
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       if (col === 1 || col === 2 || col === overallExposureColNum) {
@@ -962,13 +1044,11 @@ if (onBalanceAssets.length > 0) {
           right: { style: 'thin' }
         };
       } else {
-        // Currency columns - no borders
         cell.border = {};
-          cell.border = {};
-          cell.fill = {
+        cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: 'FFD3D3D3' } // Light dark background
+          fgColor: { argb: 'FFD3D3D3' }
         };
       }
     }
@@ -985,7 +1065,7 @@ if (onBalanceAssets.length > 0) {
     };
     worksheet.getCell(`${overallExposureCol}${currentRow}`).font = { bold: true };
     
-    // Apply borders to this row - only columns A, B and Overall Exposure have borders
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       if (col === 1 || col === 2 || col === overallExposureColNum) {
@@ -996,13 +1076,11 @@ if (onBalanceAssets.length > 0) {
           right: { style: 'thin' }
         };
       } else {
-        // Currency columns - no borders
         cell.border = {};
-          cell.border = {};
-          cell.fill = {
+        cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: 'FFD3D3D3' } // Light dark background
+          fgColor: { argb: 'FFD3D3D3' }
         };
       }
     }
@@ -1017,7 +1095,7 @@ if (onBalanceAssets.length > 0) {
     worksheet.getCell(`${overallExposureCol}${currentRow}`).value = paidUpCapital;
     worksheet.getCell(`${overallExposureCol}${currentRow}`).font = { bold: true };
     
-    // Apply borders to this row - only columns A, B and Overall Exposure have borders
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       if (col === 1 || col === 2 || col === overallExposureColNum) {
@@ -1028,13 +1106,11 @@ if (onBalanceAssets.length > 0) {
           right: { style: 'thin' }
         };
       } else {
-        // Currency columns - no borders
         cell.border = {};
-          cell.border = {};
-          cell.fill = {
+        cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: 'FFD3D3D3' } // Light dark background
+          fgColor: { argb: 'FFD3D3D3' }
         };
       }
     }
@@ -1050,7 +1126,7 @@ if (onBalanceAssets.length > 0) {
     };
     worksheet.getCell(`${overallExposureCol}${currentRow}`).font = { bold: true };
     
-    // Apply borders to this row - only columns A, B and Overall Exposure have borders
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       if (col === 1 || col === 2 || col === overallExposureColNum) {
@@ -1061,13 +1137,11 @@ if (onBalanceAssets.length > 0) {
           right: { style: 'thin' }
         };
       } else {
-        // Currency columns - no borders
         cell.border = {};
-          cell.border = {};
-          cell.fill = {
+        cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: 'FFD3D3D3' } // Light dark background
+          fgColor: { argb: 'FFD3D3D3' }
         };
       }
     }
@@ -1078,12 +1152,13 @@ if (onBalanceAssets.length > 0) {
     worksheet.getCell(`A${currentRow}`).value = '8.6';
     worksheet.getCell(`B${currentRow}`).value = 'Net Open Position Ratio (8.3/8.4*100)';
     worksheet.getRow(currentRow).font = { bold: true };
-    worksheet.getCell(`${overallExposureCol}${currentRow}`).value = {
-      formula: `${overallExposureCol}${overallOpenRow}/${overallExposureCol}${tier1CapitalRow}*100`
-    };
+   worksheet.getCell(`${overallExposureCol}${currentRow}`).value = {
+  formula: `ROUND(${overallExposureCol}${overallOpenRow}/${overallExposureCol}${tier1CapitalRow}*100, 2)`
+};
+
     worksheet.getCell(`${overallExposureCol}${currentRow}`).font = { bold: true };
     
-    // Apply borders to this row - only columns A, B and Overall Exposure have borders
+    // Apply borders
     for (let col = 1; col <= overallExposureColNum; col++) {
       const cell = worksheet.getRow(currentRow).getCell(col);
       if (col === 1 || col === 2 || col === overallExposureColNum) {
@@ -1094,75 +1169,76 @@ if (onBalanceAssets.length > 0) {
           right: { style: 'thin' }
         };
       } else {
-        // Currency columns - no borders
         cell.border = {};
-          cell.border = {};
-          cell.fill = {
+        cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: 'FFD3D3D3' } // Light dark background
+          fgColor: { argb: 'FFD3D3D3' }
         };
       }
     }
     
-    currentRow += 3; // Add 3 rows space as requested
+    currentRow += 3;
   }
 
-  // Add Description of Country Currency Code section starting from column B
- const currencyDescriptionStartRow = currentRow;
+  // Add Description of Country Currency Code section
+  const currencyDescriptionStartRow = currentRow;
 
-// Merge columns B and C for the title
-worksheet.mergeCells(`B${currentRow}:C${currentRow}`);
-worksheet.getCell(`B${currentRow}`).value = 'B) Description of Country Currency Code';
-worksheet.getCell(`B${currentRow}`).font = { bold: true, size: 12 };
-worksheet.getCell(`B${currentRow}`).alignment = { vertical: 'middle', horizontal: 'center' };
+  // Merge columns B and C for the title
+  worksheet.mergeCells(`B${currentRow}:C${currentRow}`);
+  worksheet.getCell(`B${currentRow}`).value = 'B) Descriprion of Country Currency Code';
+  worksheet.getCell(`B${currentRow}`).font = { bold: true, size: 12 };
+  worksheet.getCell(`B${currentRow}`).alignment = { vertical: 'middle', horizontal: 'center' };
 
-  // Apply thin borders to the two rows below main table as requested
-  for (let row = currencyDescriptionStartRow; row <= currencyDescriptionStartRow + 1; row++) {
-    const worksheetRow = worksheet.getRow(row);
-    for (let col = 2; col <= 3; col++) {
-      const cell = worksheetRow.getCell(col);
-      cell.border = {
-        top: { style: undefined },
-        left: { style: undefined },
-        bottom: { style: undefined },
-        right: { style: undefined }
-      };
-    }
-  }
-  
   currentRow += 2;
 
   // Add currency descriptions starting from column B
-  const currencyTableStartRow = currentRow;
-  currencies.forEach((currency, index) => {
-    worksheet.getCell(`B${currentRow}`).value = currency.name;
-    worksheet.getCell(`C${currentRow}`).value = currency.code;
-    
-    // Apply thin borders to currency description table as requested
-    for (let col = 2; col <= 3; col++) {
-      const cell = worksheet.getRow(currentRow).getCell(col);
-      cell.border = {
-        top: { style: 'thin' },
-        left: { style: 'thin' },
-        bottom: { style: 'thin' },
-        right: { style: 'thin' }
-      };
+  const currencyNames = {
+    'USD': 'Untied State of American Dollar',
+    'EUR': 'European Union of Euro',
+    'CHF': 'Swiss Franc',
+    'GBP': 'Great British Pound Sterling',
+    'JPY': 'Japanese Yen',
+    'DJF': 'Djiboutian Franc',
+    'KES': 'Kenyan Shilling',
+    'INR': 'Indian Rupee',
+    'DKK': 'Danish Krone',
+    'SEK': 'Swedish Krona',
+    'SAR': 'Saudi Riyal',
+    'CAD': 'Canadian dollar',
+    'AED': 'UAE Dirham',
+    'AUD': 'Australian dollar',
+    'CNY': 'Chinese Yuan',
+    'NOK': 'Norwegian Krone',
+    'KWD': 'Kuwaiti Dinar'
+  };
+
+  // Add all currencies in the same order as they appear in the table
+  orderedCurrencies.forEach((currency) => {
+    if (currencyNames[currency.code]) {
+      worksheet.getCell(`B${currentRow}`).value = currencyNames[currency.code];
+      worksheet.getCell(`C${currentRow}`).value = currency.code;
+      
+      // Apply thin borders
+      for (let col = 2; col <= 3; col++) {
+        const cell = worksheet.getRow(currentRow).getCell(col);
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+      }
+      
+      currentRow++;
     }
-    
-    currentRow++;
   });
-  const currencyTableEndRow = currentRow - 1;
 
   // Apply formatting
-  applyDynamicBSAFormatting(worksheet, currencies.length, currentRow, overallExposureColNum, {
-    currencyDescriptionStartRow,
-    currencyTableStartRow,
-    currencyTableEndRow
-  });
+  applyDynamicBSAFormatting(worksheet, orderedCurrencies.length, currentRow, overallExposureColNum, othersColEnd);
 }
 
-function applyDynamicBSAFormatting(worksheet, currencyCount, totalRows, overallExposureColNum, currencySection) {
+function applyDynamicBSAFormatting(worksheet, currencyCount, totalRows, overallExposureColNum, othersColEnd) {
   // Set column widths with perfect padding
   const columns = [
     { width: 8 },  // A: S/No
@@ -1174,35 +1250,43 @@ function applyDynamicBSAFormatting(worksheet, currencyCount, totalRows, overallE
     columns.push({ width: 15 });
   }
 
+  // Add 3 Others columns
+  for (let i = 0; i < 3; i++) {
+    columns.push({ width: 15 });
+  }
+
   // Add overall exposure column
   columns.push({ width: 18 });
 
   worksheet.columns = columns;
 
-  // Apply borders and number formatting to all data cells (only up to Overall Exposure column)
-  for (let row = 14; row <= totalRows; row++) { // Changed from 16 to 14
+  // Apply borders and number formatting to all data cells
+  for (let row = 14; row <= totalRows; row++) {
     const worksheetRow = worksheet.getRow(row);
     
-    // Format currency columns (starting from column C)
-    for (let col = 3; col <= (2 + currencyCount); col++) {
+    // Format all currency and Others columns
+    for (let col = 3; col <= (overallExposureColNum - 1); col++) {
       const cell = worksheetRow.getCell(col);
-      if (row >= 16 && cell.value !== undefined && cell.value !== null) { // Changed from 18 to 16
-        cell.numFmt = '#,##0.00';
+      if (row >= 16 && cell.value !== undefined && cell.value !== null) {
+        if (typeof cell.value === 'number') {
+          cell.numFmt = '#,##0.00';
+        }
       }
     }
 
-    // Format overall exposure column for calculation rows
-    const overallExposureCol = 3 + currencyCount;
-    const cell = worksheetRow.getCell(overallExposureCol);
-    if (row >= 16 && cell.value !== undefined && cell.value !== null) { // Changed from 18 to 16
-      cell.numFmt = '#,##0.00';
+    // Format overall exposure column
+    const cell = worksheetRow.getCell(overallExposureColNum);
+    if (row >= 16 && cell.value !== undefined && cell.value !== null) {
+      if (typeof cell.value === 'number') {
+        cell.numFmt = '#,##0.00';
+      }
     }
   }
 
-  // Apply borders to institution info with green background (bold borders as requested)
+  // Apply borders to institution info
   for (let row = 8; row <= 11; row++) {
     const worksheetRow = worksheet.getRow(row);
-    for (let col = 2; col <= 3; col++) { // Columns B and C
+    for (let col = 2; col <= 3; col++) {
       const cell = worksheetRow.getCell(col);
       cell.border = {
         top: { style: 'thin' },
@@ -1213,17 +1297,17 @@ function applyDynamicBSAFormatting(worksheet, currencyCount, totalRows, overallE
     }
   }
 
-  // Set row heights for better spacing
+  // Set row heights
   for (let row = 1; row <= totalRows; row++) {
     const worksheetRow = worksheet.getRow(row);
     if (row === 1 || row === 6) {
-      worksheetRow.height = 25; // Taller for main titles
+      worksheetRow.height = 25;
     } else if (row >= 4 && row <= 7) {
-      worksheetRow.height = 20; // Daily Report header rows
-    } else if (row === 14 || row === 15) { // Changed from 16/17 to 14/15
-      worksheetRow.height = 20; // Header rows
+      worksheetRow.height = 20;
+    } else if (row === 14 || row === 15) {
+      worksheetRow.height = 20;
     } else {
-      worksheetRow.height = 18; // Regular rows
+      worksheetRow.height = 18;
     }
   }
 
@@ -1231,11 +1315,11 @@ function applyDynamicBSAFormatting(worksheet, currencyCount, totalRows, overallE
   worksheet.eachRow((row, rowNumber) => {
     row.eachCell((cell, colNumber) => {
       // Center align headers and currency codes
-      if ((rowNumber === 14 || rowNumber === 15) || // Changed from 16/17 to 14/15
-          (colNumber >= 3 && colNumber <= (2 + currencyCount) && rowNumber === 15)) { // Changed from 17 to 15
+      if ((rowNumber === 14 || rowNumber === 15) ||
+          (colNumber >= 3 && colNumber <= (overallExposureColNum - 1) && rowNumber === 15)) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
       } else if (colNumber === 1) {
-        cell.alignment = { horizontal: 'center', vertical: 'middle' }; // S/No column
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
       } else {
         cell.alignment = { horizontal: 'left', vertical: 'middle' };
       }

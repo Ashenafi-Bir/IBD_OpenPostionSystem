@@ -88,7 +88,7 @@ export const getBalanceReports = [
           console.error(`Error calculating cash on hand for ${currency.code}:`, error);
           // Fallback calculation
           const cashOnHandItem = await models.BalanceItem.findOne({
-            where: { code: 'CASH_ON_HAND' }
+            where: { code: 'CURRENCY_ON_HAND' }
           });
 
           if (cashOnHandItem) {
@@ -194,7 +194,7 @@ async function calculateTotalsFallback(date, balances, cashOnHandData) {
     const amount = parseFloat(balance.amount);
 
     // Skip cash on hand from manual balances
-    if (balance.BalanceItem.code === 'CASH_ON_HAND') {
+    if (balance.BalanceItem.code === 'CURRENCY_ON_HAND') {
       return;
     }
 
